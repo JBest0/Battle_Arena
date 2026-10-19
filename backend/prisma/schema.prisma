@@ -1,0 +1,142 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AvatarType {
+  DEFAULT
+  UPLOADED
+}
+
+enum EndMode {
+  TIME
+  POINTS
+}
+
+model User {
+  id            String   @id @default(uuid()) @db.Uuid
+  username      String   @unique
+  email         String   @unique
+  passwordHash  String   @map("password_hash")
+  emailVerified Boolean  @default(false) @map("email_verified")
+  displayName   String?  @map("display_name")
+  bio           String?
+  avatarId      String?  @map("avatar_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  avatar                    Avatar?                   @relation("CurrentAvatar", fields: [avatarId], references: [id], onDelete: SetNull)
+  uploadedAvatars           Avatar[]                  @relation("AvatarOwner")
+  emailVerificationTokens   EmailVerificationToken[]
+  passwordResetTokens       PasswordResetToken[]
+  stats                     PlayerStats?
+  achievements              UserAchievement[]
+  wonMatches                Match[]                   @relation("MatchWinner")
+  matchParticipants         MatchParticipant[]
+
+  @@map("users")
+}
+
+model Avatar {
+  id      String     @id @default(uuid()) @db.Uuid
+  type    AvatarType @default(DEFAULT)
+  url     String
+  ownerId String?    @map("owner_id") @db.Uuid
+
+  owner User?  @relation("AvatarOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  users User[] @relation("CurrentAvatar")
+
+  @@map("avatars")
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("email_verification_tokens")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
+}
+
+model PlayerStats {
+  userId        String @id @map("user_id") @db.Uuid
+  gamesPlayed   Int    @default(0) @map("games_played")
+  gamesWon      Int    @default(0) @map("games_won")
+  totalPoints   Int    @default(0) @map("total_points")
+  bestScore     Int    @default(0) @map("best_score")
+  rankingPoints Int    @default(0) @map("ranking_points")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("player_stats")
+}
+
+model Achievement {
+  id          String @id @default(uuid()) @db.Uuid
+  code        String @unique
+  name        String
+  description String
+
+  users UserAchievement[]
+
+  @@map("achievements")
+}
+
+model UserAchievement {
+  userId        String   @map("user_id") @db.Uuid
+  achievementId String   @map("achievement_id") @db.Uuid
+  unlockedAt    DateTime @default(now()) @map("unlocked_at")
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@id([userId, achievementId])
+  @@map("user_achievements")
+}
+
+model Match {
+  id        String    @id @default(uuid()) @db.Uuid
+  startedAt DateTime? @map("started_at")
+  endedAt   DateTime? @map("ended_at")
+  endMode   EndMode   @map("end_mode")
+  winnerId  String?   @map("winner_id") @db.Uuid
+
+  winner       User?              @relation("MatchWinner", fields: [winnerId], references: [id], onDelete: SetNull)
+  participants MatchParticipant[]
+
+  @@map("matches")
+}
+
+model MatchParticipant {
+  matchId    String @map("match_id") @db.Uuid
+  userId     String @map("user_id") @db.Uuid
+  finalScore Int    @default(0) @map("final_score")
+  position   Int?
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([matchId, userId])
+  @@map("match_participants")
+}

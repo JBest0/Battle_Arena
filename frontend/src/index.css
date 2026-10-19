@@ -1,0 +1,175 @@
+:root {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: #1f2933;
+  background-color: #f5f7fa;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 24px;
+  background-color: #1f2933;
+  color: #f5f7fa;
+}
+
+.app-brand {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #f5f7fa;
+  text-decoration: none;
+}
+
+.app-nav {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.app-nav a {
+  color: #dbe4ea;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.app-nav a:hover,
+.app-brand:hover {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+.app-main {
+  max-width: 960px;
+  margin: 32px auto;
+  padding: 0 16px;
+}
+
+.card {
+  padding: 24px;
+  border-radius: 12px;
+  background-color: #ffffff;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.08);
+}
+
+.card h2 {
+  margin-top: 0;
+}
+
+.status {
+  display: inline-block;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.status-ok {
+  color: #0f5132;
+  background-color: #d1e7dd;
+}
+
+.status-error {
+  color: #842029;
+  background-color: #f8d7da;
+}
+
+.form-card {
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.field label {
+  font-weight: 600;
+}
+
+.field input {
+  padding: 10px 12px;
+  border: 1px solid #b8c4ce;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+.field input:focus {
+  outline: 2px solid #457b9d;
+  outline-offset: 1px;
+}
+
+.field input[aria-invalid="true"] {
+  border-color: #b02a37;
+}
+
+.field-help {
+  margin: 0;
+  padding-left: 20px;
+  color: #52606d;
+  font-size: 0.9rem;
+}
+
+.field-error {
+  margin: 0;
+  color: #b02a37;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.alert {
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.alert-error {
+  color: #842029;
+  background-color: #f8d7da;
+}
+
+.alert-warning {
+  color: #664d03;
+  background-color: #fff3cd;
+}
+
+.button {
+  display: inline-block;
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 8px;
+  background-color: #2a9d8f;
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.button:hover {
+  background-color: #21867a;
+}
+
+.button:disabled {
+  background-color: #8aa8a3;
+  cursor: not-allowed;
+}
+
+.form-footer {
+  margin-top: 20px;
+}
+
+.form-footer a {
+  color: #1d5d80;
+  font-weight: 600;
+}
