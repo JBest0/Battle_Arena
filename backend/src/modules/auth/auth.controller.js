@@ -64,6 +64,20 @@ class AuthController {
     return res.status(200).json({ message });
   }
 
+  async forgotPassword(req, res) {
+    const { message } = await this.authService.requestPasswordReset(
+      req.body.email
+    );
+
+    return res.status(200).json({ message });
+  }
+
+  async resetPassword(req, res) {
+    const { message } = await this.authService.resetPassword(req.body);
+
+    return res.status(200).json({ message });
+  }
+
   notImplemented(req, res, next) {
     return next(
       new AppError(501, 'NOT_IMPLEMENTED', 'Módulo de autenticación no implementado')

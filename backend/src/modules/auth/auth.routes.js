@@ -8,6 +8,8 @@ const {
   loginSchema,
   verifyEmailSchema,
   resendVerificationSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
 } = require('./auth.schemas');
 
 const router = express.Router();
@@ -46,6 +48,18 @@ router.post(
   '/resend-verification',
   validate(resendVerificationSchema),
   asyncHandler(authController.resendVerification.bind(authController))
+);
+
+router.post(
+  '/forgot-password',
+  validate(forgotPasswordSchema),
+  asyncHandler(authController.forgotPassword.bind(authController))
+);
+
+router.post(
+  '/reset-password',
+  validate(resetPasswordSchema),
+  asyncHandler(authController.resetPassword.bind(authController))
 );
 
 router.use(authController.notImplemented.bind(authController));

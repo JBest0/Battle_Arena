@@ -49,19 +49,54 @@ class TokenRepository {
     return this.markEmailVerificationUsed(id, tx);
   }
 
-  createPasswordResetToken(data, tx = this.db) {
-    return tx.passwordResetToken.create({ data });
+  createPasswordReset(userId, tokenHash, expiresAt, tx = this.db) {
+    return tx.passwordResetToken.create({
+      data: { userId, tokenHash, expiresAt },
+    });
   }
 
-  findPasswordResetToken(tokenHash, tx = this.db) {
-    return tx.passwordResetToken.findUnique({ where: { tokenHash } });
+  findPasswordResetByHash(tokenHash, tx = this.db) {
+    return tx.passwordResetToken.findUnique({
+      where: { tokenHash },
+      include: { user: true },
+    });
   }
 
-  markPasswordResetTokenUsed(id, tx = this.db) {
+  findLatestPasswordReset(userId, tx = this.db) {
+    return tx.passwordResetToken.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  markPasswordResetUsed(id, tx = this.db) {
     return tx.passwordResetToken.update({
       where: { id },
       data: { usedAt: new Date() },
     });
+  }
+
+  invalidatePasswordResets(userId, tx = this.db) {
+    return tx.passwordResetToken.updateMany({
+      where: { userId, usedAt: null },
+      data: { usedAt: new Date() },
+    });
+  }
+
+  async deleteExpiredTokens(olderThan, tx = this.db) {
+    const filter = {
+      OR: [{ expiresAt: { lt: olderThan } }, { usedAt: { lt: olderThan } }],
+    };
+
+    const [emailVerifications, passwordResets] = await Promise.all([
+      tx.emailVerificationToken.deleteMany({ where: filter }),
+      tx.passwordResetToken.deleteMany({ where: filter }),
+    ]);
+
+    return {
+      emailVerifications: emailVerifications.count,
+      passwordResets: passwordResets.count,
+    };
   }
 }
 

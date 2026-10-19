@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "seed": "node prisma/seed.js"
+    "seed": "node prisma/seed.js",
+    "tokens:cleanup": "node src/infrastructure/TokenCleanupJob.js"
   },
   "prisma": {
     "seed": "node prisma/seed.js"

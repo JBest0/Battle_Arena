@@ -82,6 +82,32 @@ const resendVerificationSchema = z.object({
   email: emailRules,
 });
 
+const forgotPasswordSchema = z.object({
+  email: emailRules,
+});
+
+const resetPasswordSchema = z
+  .object({
+    token: z
+      .string({
+        required_error: 'Falta el token de recuperación',
+        invalid_type_error: 'Falta el token de recuperación',
+      })
+      .trim()
+      .min(1, 'Falta el token de recuperación'),
+    password: passwordRules,
+    confirmPassword: z
+      .string({
+        required_error: 'Confirme la contraseña',
+        invalid_type_error: 'Confirme la contraseña',
+      })
+      .min(1, 'Confirme la contraseña'),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    path: ['confirmPassword'],
+    message: 'Las contraseñas no coinciden',
+  });
+
 module.exports = {
   passwordRules,
   usernameRules,
@@ -90,4 +116,6 @@ module.exports = {
   loginSchema,
   verifyEmailSchema,
   resendVerificationSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
 };

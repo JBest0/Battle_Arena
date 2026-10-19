@@ -1,14 +1,21 @@
 const bcrypt = require('bcrypt');
 const { AppError } = require('../../shared/AppError');
-const { generateToken, hashToken } = require('../../infrastructure/tokens');
+const { hashToken } = require('../../infrastructure/tokens');
 const { signAccessToken } = require('../../infrastructure/jwt');
+const {
+  isValidTokenFormat,
+  getTokenStatus,
+  issueToken,
+} = require('./tokenFlow');
 
 const EMAIL_TOKEN_TTL_HOURS = 24;
+const RESET_TOKEN_TTL_MINUTES = 30;
 const RESEND_COOLDOWN_SECONDS = 60;
 const BCRYPT_ROUNDS = 10;
-const TOKEN_PATTERN = /^[a-f0-9]{64}$/i;
 const DUMMY_HASH =
   '$2b$10$MP9yLmn4ZRwiEfFM0h6w1.SvZ9rThq7fb6GniRi0Z95SUPIfroDx6';
+const GENERIC_RESET_MESSAGE =
+  'Si el correo está registrado, te enviamos un enlace para restablecer tu contraseña. Vence en 30 minutos.';
 
 function targetIncludes(target, field) {
   if (Array.isArray(target)) {
@@ -26,19 +33,16 @@ class AuthService {
   }
 
   async issueEmailVerification(user, tx) {
-    const token = generateToken();
-    const expiresAt = new Date(
-      Date.now() + EMAIL_TOKEN_TTL_HOURS * 60 * 60 * 1000
+    return issueToken(
+      (tokenHash, expiresAt) =>
+        this.tokenRepository.createEmailVerification(
+          user.id,
+          tokenHash,
+          expiresAt,
+          tx
+        ),
+      EMAIL_TOKEN_TTL_HOURS * 60 * 60 * 1000
     );
-
-    await this.tokenRepository.createEmailVerification(
-      user.id,
-      hashToken(token),
-      expiresAt,
-      tx
-    );
-
-    return token;
   }
 
   async register(dto) {
@@ -142,6 +146,8 @@ class AuthService {
       );
     }
 
+    await this.userRepository.touchLastLogin(user.id);
+
     return {
       accessToken: signAccessToken(user),
       user: this.userRepository.toPublicUser(user),
@@ -163,7 +169,7 @@ class AuthService {
   }
 
   async verifyEmail(token) {
-    if (typeof token !== 'string' || !TOKEN_PATTERN.test(token)) {
+    if (!isValidTokenFormat(token)) {
       throw new AppError(
         400,
         'TOKEN_INVALID',
@@ -175,7 +181,9 @@ class AuthService {
       hashToken(token)
     );
 
-    if (!record) {
+    const status = getTokenStatus(record);
+
+    if (status === 'invalid') {
       throw new AppError(
         400,
         'TOKEN_INVALID',
@@ -190,7 +198,7 @@ class AuthService {
       };
     }
 
-    if (record.usedAt) {
+    if (status === 'used') {
       throw new AppError(
         400,
         'TOKEN_USED',
@@ -198,7 +206,7 @@ class AuthService {
       );
     }
 
-    if (record.expiresAt < new Date()) {
+    if (status === 'expired') {
       throw new AppError(
         410,
         'TOKEN_EXPIRED',
@@ -270,10 +278,144 @@ class AuthService {
         'Si la cuenta existe y no está verificada, te enviamos un nuevo correo.',
     };
   }
+
+  async requestPasswordReset(email) {
+    const response = { message: GENERIC_RESET_MESSAGE };
+    const user = await this.userRepository.findByEmail(email);
+
+    if (!user) {
+      return response;
+    }
+
+    const latest = await this.tokenRepository.findLatestPasswordReset(user.id);
+
+    if (
+      latest &&
+      Date.now() - latest.createdAt.getTime() <
+        RESEND_COOLDOWN_SECONDS * 1000
+    ) {
+      throw new AppError(
+        429,
+        'TOO_MANY_REQUESTS',
+        'Espera un minuto antes de pedir otro enlace'
+      );
+    }
+
+    const token = await this.unitOfWork.run(async (tx) => {
+      await this.tokenRepository.invalidatePasswordResets(user.id, tx);
+
+      return issueToken(
+        (tokenHash, expiresAt) =>
+          this.tokenRepository.createPasswordReset(
+            user.id,
+            tokenHash,
+            expiresAt,
+            tx
+          ),
+        RESET_TOKEN_TTL_MINUTES * 60 * 1000
+      );
+    });
+
+    try {
+      await this.emailService.sendPasswordReset(
+        user.email,
+        token,
+        user.username
+      );
+    } catch (err) {
+      console.error(
+        `No se pudo enviar el correo de recuperación a ${user.email}:`,
+        err
+      );
+      throw new AppError(
+        502,
+        'EMAIL_SEND_FAILED',
+        'No pudimos enviar el correo. Intenta de nuevo más tarde'
+      );
+    }
+
+    return response;
+  }
+
+  async resetPassword({ token, password }) {
+    if (!isValidTokenFormat(token)) {
+      throw new AppError(
+        400,
+        'TOKEN_INVALID',
+        'El enlace de recuperación no es válido'
+      );
+    }
+
+    const record = await this.tokenRepository.findPasswordResetByHash(
+      hashToken(token)
+    );
+    const status = getTokenStatus(record);
+
+    if (status === 'invalid') {
+      throw new AppError(
+        400,
+        'TOKEN_INVALID',
+        'El enlace de recuperación no es válido'
+      );
+    }
+
+    if (status === 'used') {
+      throw new AppError(
+        400,
+        'TOKEN_USED',
+        'Este enlace ya fue utilizado. Solicita uno nuevo'
+      );
+    }
+
+    if (status === 'expired') {
+      throw new AppError(
+        410,
+        'TOKEN_EXPIRED',
+        'El enlace de recuperación venció. Solicita uno nuevo'
+      );
+    }
+
+    if (await bcrypt.compare(password, record.user.passwordHash)) {
+      throw new AppError(
+        400,
+        'PASSWORD_REUSED',
+        'La nueva contraseña debe ser distinta a la actual',
+        { password: 'La nueva contraseña debe ser distinta a la actual' }
+      );
+    }
+
+    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+
+    await this.unitOfWork.run(async (tx) => {
+      await this.userRepository.updatePassword(
+        record.userId,
+        passwordHash,
+        tx
+      );
+      await this.tokenRepository.markPasswordResetUsed(record.id, tx);
+      await this.tokenRepository.invalidatePasswordResets(record.userId, tx);
+    });
+
+    try {
+      await this.emailService.sendPasswordChanged(
+        record.user.email,
+        record.user.username
+      );
+    } catch (err) {
+      console.error(
+        `No se pudo enviar el aviso de cambio de contraseña a ${record.user.email}:`,
+        err
+      );
+    }
+
+    return { message: 'Contraseña actualizada. Ya puedes iniciar sesión.' };
+  }
 }
 
 module.exports = {
   AuthService,
   EMAIL_TOKEN_TTL_HOURS,
+  RESET_TOKEN_TTL_MINUTES,
   RESEND_COOLDOWN_SECONDS,
+  GENERIC_RESET_MESSAGE,
 };

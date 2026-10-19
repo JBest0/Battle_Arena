@@ -49,18 +49,57 @@ class EmailService {
     });
   }
 
-  async sendPasswordReset(to, token) {
-    const link = `${this.frontendUrl}/reset?token=${encodeURIComponent(token)}`;
+  async sendPasswordReset(to, token, username) {
+    const link = `${this.frontendUrl}/reset-password?token=${encodeURIComponent(token)}`;
+    const greeting = username ? `Hola ${username},` : 'Hola,';
 
     return this.transporter.sendMail({
       from: this.mailFrom,
       to,
-      subject: 'Recuperación de contraseña - Battle Arena',
+      subject: 'Restablece tu contraseña de Battle Arena',
+      text: [
+        'Battle Arena',
+        '',
+        greeting,
+        '',
+        'Recibimos una solicitud para restablecer tu contraseña. Abre el siguiente enlace:',
+        link,
+        '',
+        'El enlace vence en 30 minutos y solo se puede usar una vez.',
+        'Si no lo solicitaste, ignora este correo.',
+      ].join('\n'),
       html: `
-        <h1>Recupera tu contraseña</h1>
-        <p>Recibimos una solicitud para restablecer tu contraseña.</p>
-        <p><a href="${link}">Crear una nueva contraseña</a></p>
-        <p>Si no solicitaste este cambio, puedes ignorar este mensaje.</p>
+        <h1>Restablece tu contraseña</h1>
+        <p>${greeting}</p>
+        <p>Recibimos una solicitud para restablecer tu contraseña. Haz clic en el siguiente enlace:</p>
+        <p><a href="${link}">Restablecer mi contraseña</a></p>
+        <p>Si el botón no funciona, copia este enlace en tu navegador:<br>${link}</p>
+        <p>El enlace vence en 30 minutos y solo se puede usar una vez.</p>
+        <p>Si no lo solicitaste, ignora este correo.</p>
+      `,
+    });
+  }
+
+  async sendPasswordChanged(to, username) {
+    const greeting = username ? `Hola ${username},` : 'Hola,';
+
+    return this.transporter.sendMail({
+      from: this.mailFrom,
+      to,
+      subject: 'Tu contraseña de Battle Arena cambió',
+      text: [
+        greeting,
+        '',
+        'La contraseña de tu cuenta de Battle Arena se cambió correctamente.',
+        'Todas las sesiones abiertas se cerraron.',
+        'Si no hiciste este cambio, solicita un nuevo enlace de recuperación de inmediato.',
+      ].join('\n'),
+      html: `
+        <h1>Tu contraseña cambió</h1>
+        <p>${greeting}</p>
+        <p>La contraseña de tu cuenta de Battle Arena se cambió correctamente.</p>
+        <p>Todas las sesiones abiertas se cerraron.</p>
+        <p>Si no hiciste este cambio, solicita un nuevo enlace de recuperación de inmediato.</p>
       `,
     });
   }

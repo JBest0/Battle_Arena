@@ -96,6 +96,51 @@ class UserRepository {
     return tx.user.update({ where: { id }, data });
   }
 
+  updatePassword(userId, passwordHash, tx = this.db) {
+    return tx.user.update({
+      where: { id: userId },
+      data: {
+        passwordHash,
+        passwordChangedAt: new Date(),
+        emailVerified: true,
+      },
+    });
+  }
+
+  async getPasswordChangedAt(userId, tx = this.db) {
+    const user = await tx.user.findUnique({
+      where: { id: userId },
+      select: { passwordChangedAt: true },
+    });
+
+    return user ? user.passwordChangedAt : null;
+  }
+
+  findByIdWithPassword(userId, tx = this.db) {
+    return tx.user.findUnique({ where: { id: userId } });
+  }
+
+  findProfileById(id, tx = this.db) {
+    return tx.user.findUnique({
+      where: { id },
+      include: { avatar: true, stats: true },
+    });
+  }
+
+  updateBasicInfo(id, { displayName, bio }, tx = this.db) {
+    return tx.user.update({
+      where: { id },
+      data: { displayName, bio },
+    });
+  }
+
+  touchLastLogin(id, tx = this.db) {
+    return tx.user.update({
+      where: { id },
+      data: { lastLoginAt: new Date() },
+    });
+  }
+
   updateAvatar(userId, avatarId, tx = this.db) {
     return tx.user.update({
       where: { id: userId },
