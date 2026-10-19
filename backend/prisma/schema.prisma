@@ -17,17 +17,25 @@ enum EndMode {
   POINTS
 }
 
+enum MatchResult {
+  WIN
+  LOSS
+  DRAW
+}
+
 model User {
   id            String   @id @default(uuid()) @db.Uuid
   username      String   @unique
   email         String   @unique
   passwordHash  String   @map("password_hash")
-  emailVerified Boolean  @default(false) @map("email_verified")
-  displayName   String?  @map("display_name")
-  bio           String?
-  avatarId      String   @map("avatar_id") @db.Uuid
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  emailVerified   Boolean   @default(false) @map("email_verified")
+  displayName     String?   @map("display_name") @db.VarChar(40)
+  bio             String?   @db.VarChar(200)
+  avatarId        String    @map("avatar_id") @db.Uuid
+  passwordChangedAt DateTime? @map("password_changed_at")
+  lastLoginAt     DateTime? @map("last_login_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   avatar                    Avatar                    @relation("CurrentAvatar", fields: [avatarId], references: [id], onDelete: Restrict)
   uploadedAvatars           Avatar[]                  @relation("AvatarOwner")
@@ -78,6 +86,7 @@ model PasswordResetToken {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("password_reset_tokens")
 }
 
@@ -91,14 +100,16 @@ model PlayerStats {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([rankingPoints])
   @@map("player_stats")
 }
 
 model Achievement {
   id          String @id @default(uuid()) @db.Uuid
-  code        String @unique
+  code        String  @unique
   name        String
   description String
+  icon        String?
 
   users UserAchievement[]
 
@@ -118,27 +129,31 @@ model UserAchievement {
 }
 
 model Match {
-  id        String    @id @default(uuid()) @db.Uuid
-  startedAt DateTime? @map("started_at")
-  endedAt   DateTime? @map("ended_at")
-  endMode   EndMode   @map("end_mode")
-  winnerId  String?   @map("winner_id") @db.Uuid
+  id              String    @id @default(uuid()) @db.Uuid
+  startedAt       DateTime? @map("started_at")
+  endedAt         DateTime? @map("ended_at")
+  endMode         EndMode   @map("end_mode")
+  winnerId        String?   @map("winner_id") @db.Uuid
+  statsRecordedAt DateTime? @map("stats_recorded_at")
 
   winner       User?              @relation("MatchWinner", fields: [winnerId], references: [id], onDelete: SetNull)
   participants MatchParticipant[]
 
+  @@index([endedAt])
   @@map("matches")
 }
 
 model MatchParticipant {
-  matchId    String @map("match_id") @db.Uuid
-  userId     String @map("user_id") @db.Uuid
-  finalScore Int    @default(0) @map("final_score")
+  matchId    String       @map("match_id") @db.Uuid
+  userId     String       @map("user_id") @db.Uuid
+  finalScore Int          @default(0) @map("final_score")
   position   Int?
+  result     MatchResult?
 
   match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([matchId, userId])
+  @@index([userId])
   @@map("match_participants")
 }
