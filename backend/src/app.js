@@ -32,7 +32,11 @@ app.get(
 );
 
 app.use('/static', express.static(path.join(__dirname, '..', 'public')));
-app.use('/uploads', express.static(config.uploadsDir));
+// Los nombres de archivo son UUID, así que el contenido de una URL nunca cambia.
+app.use(
+  '/uploads',
+  express.static(config.uploadsDir, { maxAge: '1y', immutable: true })
+);
 
 app.use('/api/auth', authRouter);
 app.use('/api/users', usersRouter);

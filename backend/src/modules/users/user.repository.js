@@ -96,6 +96,14 @@ class UserRepository {
     return tx.user.update({ where: { id }, data });
   }
 
+  updateAvatar(userId, avatarId, tx = this.db) {
+    return tx.user.update({
+      where: { id: userId },
+      data: { avatarId },
+      include: { avatar: true },
+    });
+  }
+
   toPublicUser(user) {
     return {
       id: user.id,

@@ -167,10 +167,43 @@ async function seedMatches() {
   }
 }
 
+async function ensureUserAvatars() {
+  const defaults = await prisma.avatar.findMany({
+    where: { type: 'DEFAULT' },
+    orderBy: { url: 'asc' },
+    select: { id: true },
+  });
+
+  if (defaults.length === 0) {
+    throw new Error('No hay avatares DEFAULT configurados');
+  }
+
+  const users = await prisma.user.findMany({
+    select: {
+      id: true,
+      avatar: { select: { type: true, ownerId: true } },
+    },
+  });
+
+  for (const user of users) {
+    const valid =
+      user.avatar &&
+      (user.avatar.type === 'DEFAULT' || user.avatar.ownerId === user.id);
+
+    if (!valid) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { avatarId: defaults[0].id },
+      });
+    }
+  }
+}
+
 async function main() {
   await seedAvatars();
   await seedAchievements();
   await seedUsers();
+  await ensureUserAvatars();
   await seedMatches();
   console.log('Seed completado');
 }
