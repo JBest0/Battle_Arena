@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
+import ResendVerificationForm from '../components/ResendVerificationForm';
 
 export default function CheckEmailPage() {
   const location = useLocation();
@@ -24,6 +25,12 @@ export default function CheckEmailPage() {
       <Link className="button" to="/login">
         Ir a iniciar sesión
       </Link>
+
+      <section className="resend-section">
+        <h3>¿No te llegó el correo?</h3>
+        <p>Puedes solicitar un nuevo enlace de verificación.</p>
+        <ResendVerificationForm initialEmail={email || ''} />
+      </section>
     </section>
   );
 }
