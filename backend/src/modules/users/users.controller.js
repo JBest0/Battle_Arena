@@ -42,6 +42,42 @@ class UsersController {
     return res.status(200).json(player);
   }
 
+  async getMyProfile(req, res) {
+    const profile = await this.usersService.getProfile(
+      req.user.id,
+      req.user.id
+    );
+
+    return res.status(200).json(profile);
+  }
+
+  async getProfile(req, res) {
+    const profile = await this.usersService.getProfile(
+      req.params.id,
+      req.user.id
+    );
+
+    return res.status(200).json(profile);
+  }
+
+  async updateMe(req, res) {
+    const profile = await this.usersService.updateBasicInfo(
+      req.user.id,
+      req.body
+    );
+
+    return res.status(200).json(profile);
+  }
+
+  async getMatchHistory(req, res) {
+    const history = await this.usersService.getMatchHistory(
+      req.params.id,
+      req.query
+    );
+
+    return res.status(200).json(history);
+  }
+
   notImplemented(req, res, next) {
     return next(
       new AppError(501, 'NOT_IMPLEMENTED', 'Módulo de usuarios no implementado')

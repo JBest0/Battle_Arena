@@ -6,7 +6,7 @@ const { requireAuth } = require('../../shared/middleware/requireAuth');
 const {
   uploadAvatarMiddleware,
 } = require('../../infrastructure/FileStorage');
-const { avatarSelectionSchema } = require('./users.schemas');
+const { avatarSelectionSchema, updateProfileSchema, paginationSchema, userIdParamSchema } = require('./users.schemas');
 
 const usersRouter = express.Router();
 const avatarsRouter = express.Router();
@@ -34,6 +34,34 @@ usersRouter.post(
   requireAuth,
   uploadAvatarMiddleware,
   asyncHandler(usersController.uploadAvatar.bind(usersController))
+);
+
+usersRouter.get(
+  '/me/profile',
+  requireAuth,
+  asyncHandler(usersController.getMyProfile.bind(usersController))
+);
+
+usersRouter.patch(
+  '/me',
+  requireAuth,
+  validate(updateProfileSchema),
+  asyncHandler(usersController.updateMe.bind(usersController))
+);
+
+usersRouter.get(
+  '/:id/profile',
+  requireAuth,
+  validate(userIdParamSchema, 'params'),
+  asyncHandler(usersController.getProfile.bind(usersController))
+);
+
+usersRouter.get(
+  '/:id/matches',
+  requireAuth,
+  validate(userIdParamSchema, 'params'),
+  validate(paginationSchema, 'query'),
+  asyncHandler(usersController.getMatchHistory.bind(usersController))
 );
 
 usersRouter.get(

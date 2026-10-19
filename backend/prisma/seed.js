@@ -1,7 +1,24 @@
-const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcrypt');
+const { prisma } = require('../src/infrastructure/prisma');
+const { UnitOfWork } = require('../src/infrastructure/UnitOfWork');
+const {
+  StatsRepository,
+} = require('../src/modules/stats/stats.repository');
+const {
+  MatchRepository,
+} = require('../src/modules/stats/match.repository');
+const { StatsService } = require('../src/modules/stats/stats.service');
+const {
+  AchievementEvaluator,
+} = require('../src/modules/stats/achievements/AchievementEvaluator');
+const { rules } = require('../src/modules/stats/achievements/rules');
 
-const prisma = new PrismaClient();
+const statsService = new StatsService({
+  statsRepository: new StatsRepository(prisma),
+  matchRepository: new MatchRepository(prisma),
+  achievementEvaluator: new AchievementEvaluator(rules),
+  unitOfWork: new UnitOfWork(prisma),
+});
 
 const AVATARS = [
   { id: '00000000-0000-4000-8000-000000000001', url: '/static/avatars/1.png' },
@@ -30,6 +47,18 @@ const ACHIEVEMENTS = [
     name: 'Veterano',
     description: 'Completa diez partidas.',
   },
+  {
+    id: '00000000-0000-4000-8000-000000000104',
+    code: 'HIGH_SCORE',
+    name: 'Gran puntaje',
+    description: 'Consigue 100 puntos o más en una partida.',
+  },
+  {
+    id: '00000000-0000-4000-8000-000000000105',
+    code: 'THREE_WINS',
+    name: 'Racha de campeón',
+    description: 'Gana tres partidas.',
+  },
 ];
 
 const USERS = [
@@ -37,51 +66,72 @@ const USERS = [
     id: '10000000-0000-4000-8000-000000000001',
     username: 'jugador1',
     email: 'jugador1@test.com',
+    displayName: 'Jugador Uno',
+    bio: 'Primer jugador de la arena.',
     avatarId: AVATARS[0].id,
-    stats: {
-      gamesPlayed: 2,
-      gamesWon: 1,
-      totalPoints: 35,
-      bestScore: 20,
-      rankingPoints: 12,
-    },
   },
   {
     id: '10000000-0000-4000-8000-000000000002',
     username: 'jugador2',
     email: 'jugador2@test.com',
+    displayName: 'Jugador Dos',
+    bio: 'Siempre listo para el siguiente reto.',
     avatarId: AVATARS[1].id,
-    stats: {
-      gamesPlayed: 2,
-      gamesWon: 1,
-      totalPoints: 33,
-      bestScore: 18,
-      rankingPoints: 10,
-    },
+  },
+  {
+    id: '10000000-0000-4000-8000-000000000003',
+    username: 'jugador3',
+    email: 'jugador3@test.com',
+    displayName: 'Jugador Tres',
+    bio: null,
+    avatarId: AVATARS[2].id,
   },
 ];
 
+// jugador1 gana 2, jugador2 gana 1 y hay 1 empate.
 const MATCHES = [
   {
     id: '20000000-0000-4000-8000-000000000001',
-    startedAt: new Date('2026-01-10T18:00:00.000Z'),
-    endedAt: new Date('2026-01-10T18:05:00.000Z'),
+    startedAt: new Date('2026-10-12T18:00:00.000Z'),
+    endedAt: new Date('2026-10-12T18:05:30.000Z'),
     endMode: 'TIME',
     winnerId: USERS[0].id,
     participants: [
-      { userId: USERS[0].id, finalScore: 20, position: 1 },
-      { userId: USERS[1].id, finalScore: 15, position: 2 },
+      { userId: USERS[0].id, finalScore: 50 },
+      { userId: USERS[1].id, finalScore: 30 },
     ],
   },
   {
     id: '20000000-0000-4000-8000-000000000002',
-    startedAt: new Date('2026-01-11T20:00:00.000Z'),
-    endedAt: new Date('2026-01-11T20:06:00.000Z'),
+    startedAt: new Date('2026-10-14T20:00:00.000Z'),
+    endedAt: new Date('2026-10-14T20:07:15.000Z'),
     endMode: 'POINTS',
+    winnerId: null,
+    participants: [
+      { userId: USERS[0].id, finalScore: 40 },
+      { userId: USERS[1].id, finalScore: 40 },
+    ],
+  },
+  {
+    id: '20000000-0000-4000-8000-000000000003',
+    startedAt: new Date('2026-10-16T19:30:00.000Z'),
+    endedAt: new Date('2026-10-16T19:36:00.000Z'),
+    endMode: 'TIME',
     winnerId: USERS[1].id,
     participants: [
-      { userId: USERS[1].id, finalScore: 18, position: 1 },
-      { userId: USERS[0].id, finalScore: 15, position: 2 },
+      { userId: USERS[0].id, finalScore: 35 },
+      { userId: USERS[1].id, finalScore: 45 },
+    ],
+  },
+  {
+    id: '20000000-0000-4000-8000-000000000004',
+    startedAt: new Date('2026-10-18T17:15:00.000Z'),
+    endedAt: new Date('2026-10-18T17:23:00.000Z'),
+    endMode: 'POINTS',
+    winnerId: USERS[0].id,
+    participants: [
+      { userId: USERS[0].id, finalScore: 60 },
+      { userId: USERS[1].id, finalScore: 20 },
     ],
   },
 ];
@@ -127,16 +177,43 @@ async function seedUsers() {
         email: user.email,
         passwordHash,
         emailVerified: true,
+        displayName: user.displayName,
+        bio: user.bio,
         avatarId: user.avatarId,
       },
     });
 
+    // Las estadísticas se crean en cero y solo las modifica recordMatchResult.
     await prisma.playerStats.upsert({
       where: { userId: user.id },
-      update: user.stats,
-      create: { userId: user.id, ...user.stats },
+      update: {},
+      create: { userId: user.id },
     });
   }
+}
+
+async function resetSeedStatsIfNeeded() {
+  const alreadyRecorded = await prisma.match.count({
+    where: {
+      id: { in: MATCHES.map((match) => match.id) },
+      statsRecordedAt: { not: null },
+    },
+  });
+
+  if (alreadyRecorded === MATCHES.length) {
+    return;
+  }
+
+  await prisma.playerStats.updateMany({
+    where: { userId: { in: USERS.map((user) => user.id) } },
+    data: {
+      gamesPlayed: 0,
+      gamesWon: 0,
+      totalPoints: 0,
+      bestScore: 0,
+      rankingPoints: 0,
+    },
+  });
 }
 
 async function seedMatches() {
@@ -157,13 +234,16 @@ async function seedMatches() {
             userId: participant.userId,
           },
         },
-        update: {
-          finalScore: participant.finalScore,
-          position: participant.position,
-        },
+        update: { finalScore: participant.finalScore },
         create: { matchId: id, ...participant },
       });
     }
+  }
+
+  await resetSeedStatsIfNeeded();
+
+  for (const match of MATCHES) {
+    await statsService.recordMatchResult(match.id);
   }
 }
 

@@ -9,6 +9,7 @@ const { errorHandler } = require('./shared/middleware/errorHandler');
 const { notFound } = require('./shared/middleware/notFound');
 const { authRouter } = require('./modules/auth/auth.routes');
 const { usersRouter, avatarsRouter } = require('./modules/users/users.routes');
+const { rankingRouter } = require('./modules/stats/stats.routes');
 const { gameRouter } = require('./modules/game/game.routes');
 
 const app = express();
@@ -41,6 +42,7 @@ app.use(
 app.use('/api/auth', authRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/avatars', avatarsRouter);
+app.use('/api/ranking', rankingRouter);
 app.use('/api/game', gameRouter);
 
 app.use(notFound);
