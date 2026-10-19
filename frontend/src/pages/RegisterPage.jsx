@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import client, { getErrorMessage } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 import {
   PASSWORD_HELP,
   validateRegister,
@@ -14,11 +15,16 @@ const INITIAL_FORM = {
 };
 
 export default function RegisterPage() {
+  const { status } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState(INITIAL_FORM);
   const [errors, setErrors] = useState({});
   const [generalError, setGeneralError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  if (status === 'authenticated') {
+    return <Navigate to="/profile" replace />;
+  }
 
   function handleChange(event) {
     const { name, value } = event.target;

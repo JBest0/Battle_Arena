@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import client, { getErrorMessage } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 import { getErrorCode } from '../utils/apiErrors';
 import ResendVerificationForm from '../components/ResendVerificationForm';
 
@@ -8,6 +9,7 @@ const RESENDABLE_CODES = ['TOKEN_EXPIRED', 'TOKEN_USED', 'TOKEN_INVALID'];
 
 export default function VerifyEmailPage() {
   const [searchParams] = useSearchParams();
+  const { status: authStatus, refreshUser } = useAuth();
   const token = searchParams.get('token');
   const startedRef = useRef(false);
   const [status, setStatus] = useState('verifying');
@@ -33,6 +35,14 @@ export default function VerifyEmailPage() {
         if (!active) return;
 
         setStatus(response.data.alreadyVerified ? 'already' : 'success');
+
+        if (sessionStorage.getItem('token')) {
+          try {
+            await refreshUser();
+          } catch (err) {
+            // Si la sesión no es válida, el interceptor ya la limpia.
+          }
+        }
       } catch (err) {
         if (!active) return;
 
@@ -47,7 +57,18 @@ export default function VerifyEmailPage() {
     return () => {
       active = false;
     };
-  }, [token]);
+  }, [token, refreshUser]);
+
+  const nextButton =
+    authStatus === 'authenticated' ? (
+      <Link className="button" to="/profile">
+        Ir a mi perfil
+      </Link>
+    ) : (
+      <Link className="button" to="/login">
+        Iniciar sesión
+      </Link>
+    );
 
   return (
     <section className="card form-card">
@@ -65,9 +86,7 @@ export default function VerifyEmailPage() {
             ¡Correo verificado!
           </p>
           <p>Ya puedes iniciar sesión y jugar.</p>
-          <Link className="button" to="/login">
-            Iniciar sesión
-          </Link>
+          {nextButton}
         </>
       )}
 
@@ -76,9 +95,7 @@ export default function VerifyEmailPage() {
           <p className="status status-ok" role="status">
             Tu correo ya estaba verificado
           </p>
-          <Link className="button" to="/login">
-            Iniciar sesión
-          </Link>
+          {nextButton}
         </>
       )}
 

@@ -152,13 +152,94 @@ Errores:
 | 409 | `USERNAME_TAKEN` | El nombre de usuario ya existe (sin distinguir mayúsculas). `fields.username`. |
 | 409 | `EMAIL_TAKEN` | El correo ya está registrado. `fields.email`. |
 
+### `POST /api/auth/login` (US-03)
+
+Inicia sesión con el nombre de usuario o con el correo. La comparación no distingue
+mayúsculas de minúsculas.
+
+Body:
+
+```json
+{ "identifier": "jugador1", "password": "Test1234" }
+```
+
+Respuesta `200`:
+
+```json
+{
+  "accessToken": "eyJhbGciOi...",
+  "user": {
+    "id": "uuid",
+    "username": "jugador1",
+    "email": "jugador1@test.com",
+    "emailVerified": true,
+    "avatarId": "uuid",
+    "avatarUrl": "/static/avatars/1.png",
+    "createdAt": "2026-10-19T13:00:00.000Z"
+  }
+}
+```
+
+Si el correo no está verificado, agrega:
+
+```json
+{
+  "notice": {
+    "code": "EMAIL_NOT_VERIFIED",
+    "message": "Tu correo está pendiente de verificación. Podrás jugar cuando lo verifiques."
+  }
+}
+```
+
+Errores:
+
+| Status | Código | Cuándo |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Falta el usuario/correo o la contraseña. `fields.identifier` / `fields.password`. |
+| 401 | `INVALID_CREDENTIALS` | Usuario inexistente o contraseña incorrecta. Mismo mensaje en ambos casos para no revelar qué cuentas existen. |
+
+### `GET /api/auth/me` (US-03)
+
+Requiere `Authorization: Bearer <token>`. Devuelve el usuario actual leído de la base de
+datos, incluido `emailVerified`, que nunca se guarda en el JWT.
+
+```json
+{ "user": { "id": "uuid", "username": "jugador1", "emailVerified": true } }
+```
+
+| Status | Código | Cuándo |
+| --- | --- | --- |
+| 401 | `UNAUTHORIZED` | Sin token, token inválido o usuario borrado. |
+| 401 | `TOKEN_EXPIRED_SESSION` | El JWT venció. El frontend cierra la sesión y vuelve a `/login`. |
+
+### `POST /api/auth/logout` (US-03)
+
+Requiere `Authorization: Bearer <token>` y responde `204`. El JWT no tiene estado en el
+servidor, así que no hay nada que invalidar: existe como punto único para el frontend y
+para una futura lista de revocación o auditoría.
+
+### Usuarios sin verificar
+
+Un usuario no verificado **sí puede iniciar sesión** y recibe su token, para que pueda
+ver su perfil, cambiar su avatar y reenviar la verificación. El bloqueo es solo del área
+de juego:
+
+- Backend: `requireVerifiedEmail` en las rutas de partida y
+  `assertSocketUserVerified` en los sockets.
+- Frontend: las rutas de juego viven dentro de `<VerifiedRoute>`, que redirige a
+  `/profile` con el aviso.
+
 ## Middlewares compartidos
 
 ### `requireAuth`
 
-Lee `Authorization: Bearer <token>`, verifica el JWT y deja
-`req.user = { id, username }`. Si falta o es inválido responde
-`401 UNAUTHORIZED` / "Debe iniciar sesión".
+Lee `Authorization: Bearer <token>`, verifica el JWT (firmado con
+`infrastructure/jwt.js`) y deja `req.user = { id, username }`.
+
+| Caso | Status | Código | Mensaje |
+| --- | --- | --- | --- |
+| Token ausente o inválido | 401 | `UNAUTHORIZED` | "Debes iniciar sesión" |
+| Token vencido | 401 | `TOKEN_EXPIRED_SESSION` | "Tu sesión expiró. Inicia sesión de nuevo" |
 
 ```js
 const { requireAuth } = require('../shared/middleware/requireAuth');
@@ -192,20 +273,61 @@ router.post('/', validate(matchSchema), controller.create);
 
 ### `verifySocketToken(token)`
 
-Devuelve `{ id, username }` o lanza un error. Pensado para el módulo de tiempo real:
+Devuelve `{ id, username }` o lanza un error. Pensado para el módulo de tiempo real. El
+cliente debe enviar el mismo JWT que usa HTTP:
+
+```js
+const socket = io('http://localhost:3000', {
+  auth: { token: sessionStorage.getItem('token') },
+});
+```
+
+En el servidor:
 
 ```js
 const { verifySocketToken } = require('./shared/middleware/requireAuth');
+const {
+  assertSocketUserVerified,
+} = require('./shared/middleware/requireVerifiedEmail');
 
-io.use((socket, next) => {
+io.use(async (socket, next) => {
   try {
-    socket.user = verifySocketToken(socket.handshake.auth.token);
+    const user = verifySocketToken(socket.handshake.auth.token);
+    socket.user = await assertSocketUserVerified(user);
     return next();
   } catch (err) {
-    return next(new Error(err.message));
+    return next(new Error(err.code || 'UNAUTHORIZED'));
   }
 });
 ```
+
+## Autenticación en el frontend (US-03)
+
+El token se guarda en `sessionStorage` (clave `token`), por lo que la sesión sobrevive a
+recargas y a la navegación entre pantallas, pero no se comparte entre pestañas.
+
+`src/auth/AuthContext.jsx` expone `user`, `token`, `status`
+(`loading | authenticated | anonymous`) y las funciones `login`, `logout` y
+`refreshUser`:
+
+```jsx
+import { useAuth } from '../auth/AuthContext';
+
+const { user, status, refreshUser } = useAuth();
+
+await refreshUser(); // vuelve a pedir GET /api/auth/me
+```
+
+`<ProtectedRoute>` muestra "Cargando sesión…" mientras `status === 'loading'` y redirige a
+`/login` con `state.from` si no hay sesión. `<VerifiedRoute>` va dentro de
+`<ProtectedRoute>` y redirige a `/profile` con un `notice` si `!user.emailVerified`.
+Cualquier módulo nuevo que agregue rutas de juego debe anidarlas dentro de
+`<VerifiedRoute>`.
+
+Ante un `401 UNAUTHORIZED` o `TOKEN_EXPIRED_SESSION`, el interceptor de
+`api/client.js` borra el token y emite `auth:expired`; el `AuthContext` limpia la sesión
+y navega a `/login` con el mensaje. Para mostrar `EMAIL_NOT_VERIFIED` en cualquier
+pantalla, usa `getErrorCode` de `utils/apiErrors.js`.
 
 ### `uploadAvatar`
 
@@ -289,9 +411,10 @@ chore(ci): cachear dependencias
 ## Notas de la base
 
 - `GET /api/health` verifica la conexión con `SELECT 1` y responde `503` si la base falla.
-- `POST /api/auth/register` está implementado (US-01). El resto de `/api/auth/*`,
-  `/api/users/*` y `/api/avatars/defaults` responde `501 NOT_IMPLEMENTED` hasta que
-  cada equipo implemente su módulo.
+- `POST /api/auth/register` (US-01), `POST /api/auth/login`, `GET /api/auth/me` y
+  `POST /api/auth/logout` (US-03) están implementados. El resto de `/api/users/*` y
+  `/api/avatars/defaults` responde `501 NOT_IMPLEMENTED` hasta que cada equipo
+  implemente su módulo.
 - Los avatares por defecto se sirven en `/static/avatars/1.png` … `5.png`.
 - Los avatares subidos se guardan en `UPLOADS_DIR` y se sirven en `/uploads`.
 - `.env` está ignorado por git; solo se versiona `.env.example`.

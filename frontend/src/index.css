@@ -47,6 +47,72 @@ body {
   text-decoration: underline;
 }
 
+.app-nav .player-link {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.nav-muted {
+  color: #b8c4ce;
+}
+
+.player-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  background-color: #dbe4ea;
+}
+
+.avatar-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #1f2933;
+}
+
+.player-badge-name {
+  color: #f5f7fa;
+  font-weight: 600;
+}
+
+.button-small {
+  padding: 6px 12px;
+  font-size: 0.9rem;
+}
+
+.profile-card {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.profile-header h2 {
+  margin: 0 0 6px;
+}
+
+.profile-header p {
+  margin: 0 0 8px;
+}
+
+.avatar-large {
+  width: 96px;
+  height: 96px;
+}
+
 .app-main {
   max-width: 960px;
   margin: 32px auto;
