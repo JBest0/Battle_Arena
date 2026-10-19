@@ -37,8 +37,12 @@ Para detener todo: `docker compose down`. Para borrar también los datos:
 | --- | --- | --- | --- |
 | `jugador1` | `jugador1@test.com` | `Test1234` | `/static/avatars/1.png` |
 | `jugador2` | `jugador2@test.com` | `Test1234` | `/static/avatars/2.png` |
+| `jugador3` | `jugador3@test.com` | `Test1234` | `/static/avatars/3.png` |
 
-Ambos están verificados y tienen estadísticas y dos partidas de ejemplo.
+Los tres están verificados. `jugador1` y `jugador2` tienen 4 partidas de ejemplo
+(2 victorias de `jugador1`, 1 de `jugador2` y 1 empate) registradas con el mismo
+servicio que usará el módulo de partida; `jugador3` no tiene partidas y sirve para
+ver el perfil vacío.
 
 ## Estructura
 
@@ -218,7 +222,91 @@ Requiere `Authorization: Bearer <token>` y responde `204`. El JWT no tiene estad
 servidor, así que no hay nada que invalidar: existe como punto único para el frontend y
 para una futura lista de revocación o auditoría.
 
+### `POST /api/auth/forgot-password` (US-05)
+
+Solicita un enlace de recuperación. Responde **siempre** el mismo mensaje genérico, exista
+o no el correo, para no revelar qué cuentas están registradas.
+
+Body:
+
+```json
+{ "email": "jugador1@test.com" }
+```
+
+Respuesta `200`:
+
+```json
+{
+  "message": "Si el correo está registrado, te enviamos un enlace para restablecer tu contraseña. Vence en 30 minutos."
+}
+```
+
+- El token es aleatorio, se guarda **hasheado** (`PasswordResetToken.tokenHash`) y vence a
+  los 30 minutos (`RESET_TOKEN_TTL_MINUTES`).
+- Pedir un enlace nuevo invalida los anteriores del mismo usuario.
+- Hay un cooldown de 60 segundos entre solicitudes.
+
+### `POST /api/auth/reset-password` (US-05)
+
+Body:
+
+```json
+{
+  "token": "…64 caracteres hexadecimales…",
+  "password": "Nueva1234",
+  "confirmPassword": "Nueva1234"
+}
+```
+
+Respuesta `200`:
+
+```json
+{ "message": "Contraseña actualizada. Ya puedes iniciar sesión." }
+```
+
+Al completarse:
+
+- el token queda con `usedAt` (un solo uso);
+- se invalidan los demás enlaces pendientes del usuario;
+- `User.passwordChangedAt` se actualiza, así que **todos los JWT emitidos antes se
+  rechazan** con `401 SESSION_REVOKED` (HTTP y sockets);
+- `emailVerified` pasa a `true` (si el usuario tenía el correo pendiente, el enlace enviado
+  a ese correo demuestra que le pertenece);
+- se envía un correo de aviso del cambio.
+
+Errores:
+
+| Status | Código | Cuándo |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Token faltante, correo mal formado, contraseñas distintas o reglas incumplidas. `fields` indica el campo. |
+| 400 | `PASSWORD_REUSED` | La contraseña nueva es igual a la actual. `fields.password`. |
+| 400 | `TOKEN_INVALID` | El token no tiene el formato esperado o no existe. |
+| 400 | `TOKEN_USED` | El enlace ya fue utilizado. |
+| 410 | `TOKEN_EXPIRED` | El enlace venció (CA-05.4). |
+| 429 | `TOO_MANY_REQUESTS` | Se pidió otro enlace dentro del cooldown de 60 s. |
+| 502 | `EMAIL_SEND_FAILED` | El servidor SMTP no aceptó el correo. La solicitud se puede reintentar. |
+
+### Cambio de contraseña y sesiones
+
+`requireAuth` y `verifySocketToken` comparan el `iat` del JWT con
+`User.passwordChangedAt` (a resolución de segundos). Si el token se emitió antes del último
+cambio de contraseña, responden `401 SESSION_REVOKED`; el interceptor del frontend trata
+ese código como sesión cerrada y lleva a `/login` con el mensaje.
+
+El enlace del correo apunta a `${FRONTEND_URL}/reset-password?token=…`. En desarrollo,
+Mailpit muestra los correos en http://localhost:8025.
+
+### Job de limpieza de tokens
+
+`src/infrastructure/TokenCleanupJob.js` elimina los tokens de verificación y de
+recuperación vencidos o usados hace más de 7 días (`RETENTION_DAYS`), en ambas tablas.
+
+- `server.js` lo arranca al iniciar el servidor y lo detiene en el apagado ordenado
+  (cada hora, con `setInterval(...).unref()`).
+- Ejecución manual: `npm run tokens:cleanup`.
+
 ### Usuarios sin verificar
+
 
 Un usuario no verificado **sí puede iniciar sesión** y recibe su token, para que pueda
 ver su perfil, cambiar su avatar y reenviar la verificación. El bloqueo es solo del área
@@ -240,6 +328,7 @@ Lee `Authorization: Bearer <token>`, verifica el JWT (firmado con
 | --- | --- | --- | --- |
 | Token ausente o inválido | 401 | `UNAUTHORIZED` | "Debes iniciar sesión" |
 | Token vencido | 401 | `TOKEN_EXPIRED_SESSION` | "Tu sesión expiró. Inicia sesión de nuevo" |
+| JWT emitido antes del último cambio de contraseña | 401 | `SESSION_REVOKED` | "Tu contraseña cambió. Inicia sesión de nuevo" |
 
 ```js
 const { requireAuth } = require('../shared/middleware/requireAuth');
@@ -324,9 +413,9 @@ await refreshUser(); // vuelve a pedir GET /api/auth/me
 Cualquier módulo nuevo que agregue rutas de juego debe anidarlas dentro de
 `<VerifiedRoute>`.
 
-Ante un `401 UNAUTHORIZED` o `TOKEN_EXPIRED_SESSION`, el interceptor de
-`api/client.js` borra el token y emite `auth:expired`; el `AuthContext` limpia la sesión
-y navega a `/login` con el mensaje. Para mostrar `EMAIL_NOT_VERIFIED` en cualquier
+Ante un `401 UNAUTHORIZED`, `TOKEN_EXPIRED_SESSION` o `SESSION_REVOKED`, el interceptor
+de `api/client.js` borra el token y emite `auth:expired`; el `AuthContext` limpia la
+sesión y navega a `/login` con el mensaje. Para mostrar `EMAIL_NOT_VERIFIED` en cualquier
 pantalla, usa `getErrorCode` de `utils/apiErrors.js`.
 
 ## Avatares (US-06)
@@ -426,6 +515,146 @@ window.open('/arena', 'arena'); // sin noopener
 Si más adelante hace falta compartir la sesión entre pestañas, cambia el almacenamiento a
 `localStorage` en `AuthContext.jsx`; es un solo punto.
 
+## Perfil del jugador, estadísticas y ranking (US-04)
+
+> El enunciado numera estos criterios como `CA-05.x`. En este repositorio se tratan como
+> **CA-04.1** (encabezado del perfil) y **CA-04.2** (estadísticas, logros, ranking e
+> historial).
+
+Todo lo que muestra el perfil se lee de PostgreSQL, nunca de memoria ni del navegador
+(CA-04.2: los datos sobreviven a nuevas sesiones).
+
+### Endpoints
+
+Todos requieren `Authorization: Bearer <token>` y **ninguno exige correo verificado**.
+
+| Método | Ruta | Respuesta |
+| --- | --- | --- |
+| GET | `/api/users/me/profile` | 200 perfil propio completo |
+| GET | `/api/users/:id/profile` | 200 perfil; vista pública si `:id` no es el jugador autenticado |
+| PATCH | `/api/users/me` | 200 perfil propio actualizado |
+| GET | `/api/users/:id/matches?page=1&pageSize=10` | 200 `{ items, total, page, pageSize }` |
+| GET | `/api/ranking?limit=10` | 200 `{ items, totalPlayers }` |
+
+Forma del perfil:
+
+```json
+{
+  "user": {
+    "id": "uuid",
+    "username": "jugador1",
+    "displayName": "Campeón",
+    "bio": "Jugador de prueba",
+    "avatarUrl": "/static/avatars/1.png",
+    "memberSince": "2026-10-12T…",
+    "lastLoginAt": "2026-10-19T…",
+    "email": "jugador1@test.com",
+    "emailVerified": true
+  },
+  "isOwnProfile": true,
+  "stats": {
+    "gamesPlayed": 4, "gamesWon": 2, "gamesLost": 1, "gamesDrawn": 1,
+    "winRate": 50, "totalPoints": 145, "averagePoints": 36.3,
+    "bestScore": 50, "rankingPoints": 7
+  },
+  "ranking": { "position": 1, "totalPlayers": 2 },
+  "achievements": [
+    { "code": "FIRST_MATCH", "name": "Primera partida", "description": "…",
+      "icon": "…", "unlocked": true, "unlockedAt": "…" }
+  ],
+  "recentMatches": { "items": ["…las 5 más recientes…"], "total": 4 }
+}
+```
+
+- `email` y `emailVerified` **solo** aparecen si `isOwnProfile` es `true`.
+- `winRate` y `averagePoints` se redondean a un decimal; con 0 partidas valen 0 (nunca
+  `NaN` ni `null`).
+- `gamesLost` y `gamesDrawn` salen de `MatchParticipant.result`.
+- Si un usuario no tuviera `PlayerStats`, el servicio lo crea en cero y lo registra.
+
+`PATCH /api/users/me` recibe `displayName` (0–40) y/o `bio` (0–200). Los textos vacíos se
+guardan como `null`; enviar ambos campos ausentes responde `400 VALIDATION_ERROR`
+("No hay cambios que guardar").
+
+Cada elemento del historial trae `matchId`, `startedAt`, `endedAt`, `durationSeconds`,
+`endMode`, `result` (`WIN`/`LOSS`/`DRAW`), `finalScore`, `position` y
+`opponents: [{ id, username, avatarUrl, finalScore }]`, ordenado de la partida más
+reciente a la más antigua.
+
+Errores:
+
+| Status | Código | Cuándo |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | `id` que no es UUID, paginación fuera de rango (1–50), límite de ranking fuera de rango o body inválido. |
+| 401 | `UNAUTHORIZED` | Sin token o token inválido. |
+| 401 | `SESSION_REVOKED` | El JWT es anterior al último cambio de contraseña. |
+| 404 | `USER_NOT_FOUND` | El jugador no existe. |
+| 404 | `MATCH_NOT_FOUND` | El módulo de partida intentó registrar una partida inexistente. |
+| 409 | `MATCH_NOT_FINISHED` | La partida no tiene `endedAt`. |
+
+### Ranking
+
+Orden: `rankingPoints` **desc**, luego `gamesWon` **desc**, luego `username` **asc**.
+Puntos por partida: **victoria +3, empate +1, derrota 0**. Si el puntaje máximo lo comparte
+más de un jugador, todos los que están en el primer lugar cuentan como empate (`DRAW`) y
+comparten la posición 1.
+
+`getRankingPosition` y `getTopRanking` usan una sola consulta con
+`ROW_NUMBER() OVER (ORDER BY …)`, para no cargar todos los usuarios en memoria. El
+desempate de la ventana es exactamente el mismo que el del `ORDER BY` del top.
+
+### Logros (patrón Strategy)
+
+Cada logro es una regla independiente en
+`modules/stats/achievements/rules.js`:
+
+```js
+{ code: 'FIRST_WIN', isUnlocked: (stats) => stats.gamesWon >= 1 }
+```
+
+`AchievementEvaluator` recibe la lista por constructor y `evaluate(stats)` devuelve los
+códigos desbloqueados. **Para agregar un logro**: crea la fila en el catálogo
+(`Achievement`, con `code` único; el seed ya trae `FIRST_MATCH`, `FIRST_WIN`,
+`TEN_MATCHES`, `HIGH_SCORE` y `THREE_WINS`) y agrega una regla a `rules.js`. No hay que
+tocar el servicio (abierto/cerrado).
+
+`unlockAchievements` usa `createMany({ skipDuplicates: true })`, así que registrar dos
+veces la misma partida no duplica logros.
+
+### Para el módulo de partida (US-16)
+
+Al terminar una partida, el módulo de partida debe guardar **antes** de llamar al
+servicio:
+
+1. Una `Match` con `endedAt` (obligatorio), `startedAt` y `endMode` (`TIME` o `POINTS`);
+   `winnerId` es opcional.
+2. Un `MatchParticipant` por jugador con su `finalScore`.
+
+Después llama:
+
+```js
+const { statsService } = require('../container');
+
+const result = await statsService.recordMatchResult(matchId);
+// { alreadyRecorded: false, results: [...], unlocked: { [userId]: [codes] } }
+```
+
+- Es **idempotente** gracias a `Match.statsRecordedAt`: una segunda llamada no vuelve a
+  sumar estadísticas y devuelve `{ alreadyRecorded: true }`.
+- El servicio calcula `result` y `position` de cada participante, actualiza `PlayerStats`
+  (+3/+1/0, `totalPoints`, `bestScore`) y desbloquea logros.
+- Lánzalo dentro del mismo flujo en que cierras la partida; si falla, la partida sigue
+  terminada y puedes reintentar sin duplicar datos.
+- Lanza `404 MATCH_NOT_FOUND` o `409 MATCH_NOT_FINISHED` si la partida no existe o no ha
+  terminado.
+
+### Reutilizar componentes en el juego
+
+`components/profile/RankingTable.jsx` recibe los datos por props
+(`items`, `highlightUserId`, `separatedUserId`), no llama a la API y se puede reutilizar
+tal cual para el **podio** y el **ranking del Sprint 3**. `AvatarImage` y `PlayerBadge`
+siguen siendo la forma estándar de mostrar jugadores.
+
 ## Base de datos
 
 - PostgreSQL 16 + Prisma.
@@ -496,10 +725,11 @@ chore(ci): cachear dependencias
 ## Notas de la base
 
 - `GET /api/health` verifica la conexión con `SELECT 1` y responde `503` si la base falla.
-- `POST /api/auth/register` (US-01), `POST /api/auth/login`, `GET /api/auth/me` y
-  `POST /api/auth/logout` (US-03), y los endpoints de avatares (US-06) están
-  implementados. El resto de `/api/users/*` responde `501 NOT_IMPLEMENTED` hasta que cada
-  equipo implemente su módulo.
+- `POST /api/auth/register` (US-01), `POST /api/auth/login`, `GET /api/auth/me`,
+  `POST /api/auth/logout` (US-03), `POST /api/auth/forgot-password` y
+  `POST /api/auth/reset-password` (US-05), los endpoints de avatares (US-06), y los de
+  perfil, historial y ranking (US-04) están implementados. El resto de `/api/users/*`
+  responde `501 NOT_IMPLEMENTED` hasta que cada equipo implemente su módulo.
 - Los avatares por defecto se sirven en `/static/avatars/1.png` … `5.png`.
 - Los avatares subidos se guardan en `UPLOADS_DIR` y se sirven en `/uploads`.
 - `.env` está ignorado por git; solo se versiona `.env.example`.
