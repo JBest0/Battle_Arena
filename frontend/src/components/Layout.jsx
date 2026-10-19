@@ -28,6 +28,7 @@ export default function Layout() {
                 <PlayerBadge user={user} />
               </Link>
               <Link to="/profile">Mi perfil</Link>
+              <Link to="/ranking">Ranking</Link>
               <Link to="/lobby">Jugar</Link>
               <button
                 type="button"

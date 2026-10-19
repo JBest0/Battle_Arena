@@ -12,6 +12,9 @@ import ProfilePage from './pages/ProfilePage';
 import LobbyPage from './pages/LobbyPage';
 import ArenaPage from './pages/ArenaPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
+import PlayerProfilePage from './pages/PlayerProfilePage';
+import RankingPage from './pages/RankingPage';
 
 export default function App() {
   return (
@@ -23,9 +26,12 @@ export default function App() {
         <Route path="verify" element={<VerifyEmailPage />} />
         <Route path="login" element={<LoginPage />} />
         <Route path="forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="reset-password" element={<ResetPasswordPage />} />
 
         <Route element={<ProtectedRoute />}>
           <Route path="profile" element={<ProfilePage />} />
+          <Route path="players/:id" element={<PlayerProfilePage />} />
+          <Route path="ranking" element={<RankingPage />} />
         </Route>
       </Route>
 
