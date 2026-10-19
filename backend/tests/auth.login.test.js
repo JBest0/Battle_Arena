@@ -125,6 +125,27 @@ describe('POST /api/auth/login', () => {
     expect(payload).not.toHaveProperty('emailVerified');
   });
 
+  it('registra el último acceso al iniciar sesión', async () => {
+    const before = await prisma.user.findUnique({
+      where: { email: 'verificado@test.com' },
+    });
+    expect(before.lastLoginAt).toBeNull();
+
+    const response = await login({
+      identifier: 'jugador_verificado',
+      password: PASSWORD,
+    });
+    expect(response.status).toBe(200);
+
+    const after = await prisma.user.findUnique({
+      where: { email: 'verificado@test.com' },
+    });
+    expect(after.lastLoginAt).not.toBeNull();
+    expect(after.lastLoginAt.getTime()).toBeGreaterThanOrEqual(
+      before.createdAt.getTime()
+    );
+  });
+
   it('CA-03.4: avisa con notice cuando el correo no está verificado', async () => {
     const pending = await login({
       identifier: 'jugador_pendiente',
