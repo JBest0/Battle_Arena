@@ -57,10 +57,26 @@ const loginSchema = z.object({
   password: z.string().min(1, 'La contraseña es obligatoria'),
 });
 
+const verifyEmailSchema = z.object({
+  token: z
+    .string({
+      required_error: 'Falta el token de verificación',
+      invalid_type_error: 'Falta el token de verificación',
+    })
+    .trim()
+    .min(1, 'Falta el token de verificación'),
+});
+
+const resendVerificationSchema = z.object({
+  email: emailRules,
+});
+
 module.exports = {
   passwordRules,
   usernameRules,
   emailRules,
   registerSchema,
   loginSchema,
+  verifyEmailSchema,
+  resendVerificationSchema,
 };

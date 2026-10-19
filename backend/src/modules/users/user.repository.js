@@ -7,7 +7,10 @@ class UserRepository {
   }
 
   findById(id, tx = this.db) {
-    return tx.user.findUnique({ where: { id } });
+    return tx.user.findUnique({
+      where: { id },
+      include: { avatar: true },
+    });
   }
 
   findByUsername(username, tx = this.db) {
@@ -48,6 +51,22 @@ class UserRepository {
       },
       include: { avatar: true },
     });
+  }
+
+  markEmailVerified(userId, tx = this.db) {
+    return tx.user.update({
+      where: { id: userId },
+      data: { emailVerified: true },
+    });
+  }
+
+  async isEmailVerified(userId, tx = this.db) {
+    const user = await tx.user.findUnique({
+      where: { id: userId },
+      select: { emailVerified: true },
+    });
+
+    return Boolean(user && user.emailVerified);
   }
 
   update(id, data, tx = this.db) {

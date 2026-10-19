@@ -16,6 +16,28 @@ class AuthController {
     });
   }
 
+  async verifyEmail(req, res) {
+    const { alreadyVerified, user } = await this.authService.verifyEmail(
+      req.body.token
+    );
+
+    return res.status(200).json({
+      message: alreadyVerified
+        ? 'Tu correo ya estaba verificado.'
+        : 'Correo verificado. Ya puedes iniciar sesión y jugar.',
+      alreadyVerified,
+      user,
+    });
+  }
+
+  async resendVerification(req, res) {
+    const { message } = await this.authService.resendVerification(
+      req.body.email
+    );
+
+    return res.status(200).json({ message });
+  }
+
   notImplemented(req, res, next) {
     return next(
       new AppError(501, 'NOT_IMPLEMENTED', 'Módulo de autenticación no implementado')

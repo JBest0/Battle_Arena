@@ -9,6 +9,7 @@ const { errorHandler } = require('./shared/middleware/errorHandler');
 const { notFound } = require('./shared/middleware/notFound');
 const { authRouter } = require('./modules/auth/auth.routes');
 const { usersRouter, avatarsRouter } = require('./modules/users/users.routes');
+const { gameRouter } = require('./modules/game/game.routes');
 
 const app = express();
 
@@ -36,6 +37,7 @@ app.use('/uploads', express.static(config.uploadsDir));
 app.use('/api/auth', authRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/avatars', avatarsRouter);
+app.use('/api/game', gameRouter);
 
 app.use(notFound);
 app.use(errorHandler);

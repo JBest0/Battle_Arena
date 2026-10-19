@@ -3,7 +3,9 @@ const { AppError } = require('../../shared/AppError');
 const { generateToken, hashToken } = require('../../infrastructure/tokens');
 
 const EMAIL_TOKEN_TTL_HOURS = 24;
+const RESEND_COOLDOWN_SECONDS = 60;
 const BCRYPT_ROUNDS = 10;
+const TOKEN_PATTERN = /^[a-f0-9]{64}$/i;
 
 function targetIncludes(target, field) {
   if (Array.isArray(target)) {
@@ -18,6 +20,22 @@ class AuthService {
     this.tokenRepository = tokenRepository;
     this.emailService = emailService;
     this.unitOfWork = unitOfWork;
+  }
+
+  async issueEmailVerification(user, tx) {
+    const token = generateToken();
+    const expiresAt = new Date(
+      Date.now() + EMAIL_TOKEN_TTL_HOURS * 60 * 60 * 1000
+    );
+
+    await this.tokenRepository.createEmailVerification(
+      user.id,
+      hashToken(token),
+      expiresAt,
+      tx
+    );
+
+    return token;
   }
 
   async register(dto) {
@@ -42,15 +60,12 @@ class AuthService {
     }
 
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
-    const token = generateToken();
-    const expiresAt = new Date(
-      Date.now() + EMAIL_TOKEN_TTL_HOURS * 60 * 60 * 1000
-    );
 
     let user;
+    let token;
 
     try {
-      user = await this.unitOfWork.run(async (tx) => {
+      ({ user, token } = await this.unitOfWork.run(async (tx) => {
         const avatarId = await this.userRepository.getDefaultAvatarId(tx);
 
         const createdUser = await this.userRepository.createWithStats(
@@ -63,15 +78,13 @@ class AuthService {
           tx
         );
 
-        await this.tokenRepository.createEmailVerification(
-          createdUser.id,
-          hashToken(token),
-          expiresAt,
+        const verificationToken = await this.issueEmailVerification(
+          createdUser,
           tx
         );
 
-        return createdUser;
-      });
+        return { user: createdUser, token: verificationToken };
+      }));
     } catch (err) {
       if (err && err.code === 'P2002') {
         if (targetIncludes(err.meta && err.meta.target, 'username')) {
@@ -110,6 +123,119 @@ class AuthService {
       emailSent,
     };
   }
+
+  async verifyEmail(token) {
+    if (typeof token !== 'string' || !TOKEN_PATTERN.test(token)) {
+      throw new AppError(
+        400,
+        'TOKEN_INVALID',
+        'El enlace de verificación no es válido'
+      );
+    }
+
+    const record = await this.tokenRepository.findEmailVerificationByHash(
+      hashToken(token)
+    );
+
+    if (!record) {
+      throw new AppError(
+        400,
+        'TOKEN_INVALID',
+        'El enlace de verificación no es válido'
+      );
+    }
+
+    if (record.user.emailVerified) {
+      return {
+        alreadyVerified: true,
+        user: this.userRepository.toPublicUser(record.user),
+      };
+    }
+
+    if (record.usedAt) {
+      throw new AppError(
+        400,
+        'TOKEN_USED',
+        'Este enlace ya fue utilizado. Solicita uno nuevo.'
+      );
+    }
+
+    if (record.expiresAt < new Date()) {
+      throw new AppError(
+        410,
+        'TOKEN_EXPIRED',
+        'El enlace de verificación venció. Solicita uno nuevo.'
+      );
+    }
+
+    const updatedUser = await this.unitOfWork.run(async (tx) => {
+      await this.userRepository.markEmailVerified(record.userId, tx);
+      await this.tokenRepository.markEmailVerificationUsed(record.id, tx);
+      await this.tokenRepository.invalidateEmailVerifications(record.userId, tx);
+
+      return this.userRepository.findById(record.userId, tx);
+    });
+
+    return {
+      alreadyVerified: false,
+      user: this.userRepository.toPublicUser(updatedUser),
+    };
+  }
+
+  async resendVerification(email) {
+    const user = await this.userRepository.findByEmail(email);
+
+    if (!user || user.emailVerified) {
+      return {
+        message:
+          'Si la cuenta existe y no está verificada, te enviamos un nuevo correo.',
+      };
+    }
+
+    const latest = await this.tokenRepository.findLatestEmailVerification(
+      user.id
+    );
+
+    if (
+      latest &&
+      Date.now() - latest.createdAt.getTime() <
+        RESEND_COOLDOWN_SECONDS * 1000
+    ) {
+      throw new AppError(
+        429,
+        'TOO_MANY_REQUESTS',
+        'Espera un minuto antes de pedir otro correo'
+      );
+    }
+
+    const token = await this.unitOfWork.run(async (tx) => {
+      await this.tokenRepository.invalidateEmailVerifications(user.id, tx);
+      return this.issueEmailVerification(user, tx);
+    });
+
+    try {
+      await this.emailService.sendVerification(user.email, token, user.username);
+    } catch (err) {
+      console.error(
+        `No se pudo enviar el correo de verificación a ${user.email}:`,
+        err
+      );
+      throw new AppError(
+        502,
+        'EMAIL_SEND_FAILED',
+        'No pudimos enviar el correo. Intenta de nuevo más tarde'
+      );
+    }
+
+    return {
+      message:
+        'Si la cuenta existe y no está verificada, te enviamos un nuevo correo.',
+    };
+  }
 }
 
-module.exports = { AuthService, EMAIL_TOKEN_TTL_HOURS };
+module.exports = {
+  AuthService,
+  EMAIL_TOKEN_TTL_HOURS,
+  RESEND_COOLDOWN_SECONDS,
+};

@@ -14,12 +14,14 @@ function createRequireVerifiedEmail(userRepository) {
         return next(new AppError(401, 'UNAUTHORIZED', 'Debe iniciar sesión'));
       }
 
-      if (!user.emailVerified) {
+      const verified = await userRepository.isEmailVerified(req.user.id);
+
+      if (!verified) {
         return next(
           new AppError(
             403,
             'EMAIL_NOT_VERIFIED',
-            'Debe verificar su correo para jugar'
+            'Debes verificar tu correo antes de iniciar una partida'
           )
         );
       }
@@ -32,6 +34,29 @@ function createRequireVerifiedEmail(userRepository) {
   };
 }
 
-const requireVerifiedEmail = createRequireVerifiedEmail(new UserRepository());
+const defaultUserRepository = new UserRepository();
+const requireVerifiedEmail = createRequireVerifiedEmail(defaultUserRepository);
 
-module.exports = { requireVerifiedEmail, createRequireVerifiedEmail };
+async function assertSocketUserVerified(payload, userRepository = defaultUserRepository) {
+  if (!payload || !payload.id) {
+    throw new AppError(401, 'UNAUTHORIZED', 'Debe iniciar sesión');
+  }
+
+  const verified = await userRepository.isEmailVerified(payload.id);
+
+  if (!verified) {
+    throw new AppError(
+      403,
+      'EMAIL_NOT_VERIFIED',
+      'Debes verificar tu correo antes de iniciar una partida'
+    );
+  }
+
+  return payload;
+}
+
+module.exports = {
+  requireVerifiedEmail,
+  createRequireVerifiedEmail,
+  assertSocketUserVerified,
+};
