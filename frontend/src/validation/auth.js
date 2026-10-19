@@ -61,3 +61,33 @@ export function validateRegister(values) {
 
   return errors;
 }
+
+export function validatePasswordReset(values) {
+  const errors = {};
+
+  const passwordError = validatePassword(values.password);
+  if (passwordError) errors.password = passwordError;
+
+  if (!values.confirmPassword) {
+    errors.confirmPassword = 'Confirme la contraseña';
+  } else if (values.confirmPassword !== values.password) {
+    errors.confirmPassword = 'Las contraseñas no coinciden';
+  }
+
+  return errors;
+}
+
+export function validateProfileInfo(values) {
+  const errors = {};
+
+  if (values.displayName.trim().length > 40) {
+    errors.displayName =
+      'El nombre visible debe tener como máximo 40 caracteres';
+  }
+
+  if (values.bio.trim().length > 200) {
+    errors.bio = 'La biografía debe tener como máximo 200 caracteres';
+  }
+
+  return errors;
+}

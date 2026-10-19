@@ -12,7 +12,11 @@ client.interceptors.request.use((config) => {
   return config;
 });
 
-const SESSION_ERROR_CODES = ['UNAUTHORIZED', 'TOKEN_EXPIRED_SESSION'];
+const SESSION_ERROR_CODES = [
+  'UNAUTHORIZED',
+  'TOKEN_EXPIRED_SESSION',
+  'SESSION_REVOKED',
+];
 
 client.interceptors.response.use(
   (response) => response,

@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import client, { getErrorMessage } from '../api/client';
+import useCooldown from '../hooks/useCooldown';
 import { getErrorCode } from '../utils/apiErrors';
 import { validateEmail } from '../validation/auth';
 
@@ -13,30 +14,11 @@ export default function ResendVerificationForm({ initialEmail = '' }) {
   const [generalError, setGeneralError] = useState('');
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [cooldown, setCooldown] = useState(0);
-  const timerRef = useRef(null);
+  const { cooldown, start: startCooldown } = useCooldown(COOLDOWN_SECONDS);
 
   useEffect(() => {
     setEmail(initialEmail);
   }, [initialEmail]);
-
-  useEffect(() => {
-    return () => clearInterval(timerRef.current);
-  }, []);
-
-  function startCooldown(seconds = COOLDOWN_SECONDS) {
-    setCooldown(seconds);
-    clearInterval(timerRef.current);
-    timerRef.current = setInterval(() => {
-      setCooldown((current) => {
-        if (current <= 1) {
-          clearInterval(timerRef.current);
-          return 0;
-        }
-        return current - 1;
-      });
-    }, 1000);
-  }
 
   function handleChange(event) {
     setEmail(event.target.value);
