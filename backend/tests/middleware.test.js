@@ -43,7 +43,7 @@ describe('requireAuth', () => {
 
     expect(response.status).toBe(401);
     expect(response.body.error.code).toBe('UNAUTHORIZED');
-    expect(response.body.error.message).toBe('Debe iniciar sesión');
+    expect(response.body.error.message).toBe('Debes iniciar sesión');
   });
 
   it('responde 401 cuando el token es inválido', async () => {
