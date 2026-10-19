@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
+import GameWindowLayout from './components/GameWindowLayout';
 import ProtectedRoute from './auth/ProtectedRoute';
 import VerifiedRoute from './auth/VerifiedRoute';
 import HomePage from './pages/HomePage';
@@ -25,8 +26,12 @@ export default function App() {
 
         <Route element={<ProtectedRoute />}>
           <Route path="profile" element={<ProfilePage />} />
+        </Route>
+      </Route>
 
-          <Route element={<VerifiedRoute />}>
+      <Route element={<ProtectedRoute />}>
+        <Route element={<VerifiedRoute />}>
+          <Route element={<GameWindowLayout />}>
             <Route path="lobby" element={<LobbyPage />} />
             <Route path="arena" element={<ArenaPage />} />
           </Route>

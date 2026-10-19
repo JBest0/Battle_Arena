@@ -1,5 +1,7 @@
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import AvatarImage from '../components/AvatarImage';
+import AvatarPicker from '../components/AvatarPicker';
 
 export default function ProfilePage() {
   const { user } = useAuth();
@@ -15,10 +17,11 @@ export default function ProfilePage() {
       )}
 
       <div className="profile-header">
-        <img
-          className="avatar avatar-large"
+        <AvatarImage
           src={user.avatarUrl}
-          alt={`Avatar de ${user.username}`}
+          username={user.username}
+          size={128}
+          className="avatar-large"
         />
         <div>
           <h2>{user.username}</h2>
@@ -34,6 +37,11 @@ export default function ProfilePage() {
           </p>
         </div>
       </div>
+
+      <section className="profile-section">
+        <h2>Tu avatar</h2>
+        <AvatarPicker />
+      </section>
 
       {/* US-04: completar con datos básicos, estadísticas, logros, ranking e historial */}
     </section>
