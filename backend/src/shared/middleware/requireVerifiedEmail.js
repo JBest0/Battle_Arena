@@ -4,14 +4,14 @@ const { UserRepository } = require('../../modules/users/user.repository');
 function createRequireVerifiedEmail(userRepository) {
   return async function requireVerifiedEmail(req, res, next) {
     if (!req.user) {
-      return next(new AppError(401, 'UNAUTHORIZED', 'Debe iniciar sesión'));
+      return next(new AppError(401, 'UNAUTHORIZED', 'Debes iniciar sesión'));
     }
 
     try {
       const user = await userRepository.findById(req.user.id);
 
       if (!user) {
-        return next(new AppError(401, 'UNAUTHORIZED', 'Debe iniciar sesión'));
+        return next(new AppError(401, 'UNAUTHORIZED', 'Debes iniciar sesión'));
       }
 
       const verified = await userRepository.isEmailVerified(req.user.id);
@@ -39,7 +39,7 @@ const requireVerifiedEmail = createRequireVerifiedEmail(defaultUserRepository);
 
 async function assertSocketUserVerified(payload, userRepository = defaultUserRepository) {
   if (!payload || !payload.id) {
-    throw new AppError(401, 'UNAUTHORIZED', 'Debe iniciar sesión');
+    throw new AppError(401, 'UNAUTHORIZED', 'Debes iniciar sesión');
   }
 
   const verified = await userRepository.isEmailVerified(payload.id);

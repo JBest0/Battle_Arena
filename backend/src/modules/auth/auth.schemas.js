@@ -53,8 +53,19 @@ const registerSchema = z
   });
 
 const loginSchema = z.object({
-  identifier: z.string().min(1, 'El identificador es obligatorio'),
-  password: z.string().min(1, 'La contraseña es obligatoria'),
+  identifier: z
+    .string({
+      required_error: 'Ingresa tu usuario o correo',
+      invalid_type_error: 'Ingresa tu usuario o correo',
+    })
+    .trim()
+    .min(1, 'Ingresa tu usuario o correo'),
+  password: z
+    .string({
+      required_error: 'Ingresa tu contraseña',
+      invalid_type_error: 'Ingresa tu contraseña',
+    })
+    .min(1, 'Ingresa tu contraseña'),
 });
 
 const verifyEmailSchema = z.object({

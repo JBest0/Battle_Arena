@@ -1,11 +1,14 @@
 const bcrypt = require('bcrypt');
 const { AppError } = require('../../shared/AppError');
 const { generateToken, hashToken } = require('../../infrastructure/tokens');
+const { signAccessToken } = require('../../infrastructure/jwt');
 
 const EMAIL_TOKEN_TTL_HOURS = 24;
 const RESEND_COOLDOWN_SECONDS = 60;
 const BCRYPT_ROUNDS = 10;
 const TOKEN_PATTERN = /^[a-f0-9]{64}$/i;
+const DUMMY_HASH =
+  '$2b$10$MP9yLmn4ZRwiEfFM0h6w1.SvZ9rThq7fb6GniRi0Z95SUPIfroDx6';
 
 function targetIncludes(target, field) {
   if (Array.isArray(target)) {
@@ -122,6 +125,41 @@ class AuthService {
       user: this.userRepository.toPublicUser(user),
       emailSent,
     };
+  }
+
+  async login({ identifier, password }) {
+    const user = await this.userRepository.findByIdentifier(identifier);
+    const passwordMatches = await bcrypt.compare(
+      password,
+      user ? user.passwordHash : DUMMY_HASH
+    );
+
+    if (!user || !passwordMatches) {
+      throw new AppError(
+        401,
+        'INVALID_CREDENTIALS',
+        'Usuario/correo o contraseña incorrectos'
+      );
+    }
+
+    return {
+      accessToken: signAccessToken(user),
+      user: this.userRepository.toPublicUser(user),
+    };
+  }
+
+  async getCurrentUser(userId) {
+    const user = await this.userRepository.findByIdWithAvatar(userId);
+
+    if (!user) {
+      throw new AppError(
+        401,
+        'UNAUTHORIZED',
+        'Tu sesión ya no es válida. Inicia sesión de nuevo'
+      );
+    }
+
+    return this.userRepository.toPublicUser(user);
   }
 
   async verifyEmail(token) {

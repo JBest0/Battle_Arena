@@ -16,6 +16,32 @@ class AuthController {
     });
   }
 
+  async login(req, res) {
+    const { accessToken, user } = await this.authService.login(req.body);
+
+    const body = { accessToken, user };
+
+    if (!user.emailVerified) {
+      body.notice = {
+        code: 'EMAIL_NOT_VERIFIED',
+        message:
+          'Tu correo está pendiente de verificación. Podrás jugar cuando lo verifiques.',
+      };
+    }
+
+    return res.status(200).json(body);
+  }
+
+  async me(req, res) {
+    const user = await this.authService.getCurrentUser(req.user.id);
+
+    return res.status(200).json({ user });
+  }
+
+  logout(req, res) {
+    return res.status(204).send();
+  }
+
   async verifyEmail(req, res) {
     const { alreadyVerified, user } = await this.authService.verifyEmail(
       req.body.token

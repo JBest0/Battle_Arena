@@ -23,6 +23,29 @@ class UserRepository {
     return tx.user.findUnique({ where: { email } });
   }
 
+  findByIdentifier(identifier, tx = this.db) {
+    const value = identifier.trim();
+
+    if (value.includes('@')) {
+      return tx.user.findUnique({
+        where: { email: value.toLowerCase() },
+        include: { avatar: true },
+      });
+    }
+
+    return tx.user.findFirst({
+      where: { username: { equals: value, mode: 'insensitive' } },
+      include: { avatar: true },
+    });
+  }
+
+  findByIdWithAvatar(id, tx = this.db) {
+    return tx.user.findUnique({
+      where: { id },
+      include: { avatar: true },
+    });
+  }
+
   async getDefaultAvatarId(tx = this.db) {
     const avatar = await tx.avatar.findFirst({
       where: { type: 'DEFAULT' },
@@ -79,6 +102,7 @@ class UserRepository {
       username: user.username,
       email: user.email,
       emailVerified: user.emailVerified,
+      avatarId: user.avatarId || (user.avatar ? user.avatar.id : null),
       avatarUrl: user.avatar ? user.avatar.url : null,
       createdAt: user.createdAt,
     };
