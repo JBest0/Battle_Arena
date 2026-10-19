@@ -331,8 +331,10 @@ pantalla, usa `getErrorCode` de `utils/apiErrors.js`.
 
 ## Avatares (US-06)
 
-Cada jugador tiene siempre un avatar: al registrarse recibe el primer avatar `DEFAULT`.
-El seed crea 5 avatares en `/static/avatars/1.png` … `5.png`.
+Cada jugador tiene siempre un avatar: al registrarse recibe el primer avatar `DEFAULT` y
+`User.avatarId` es obligatorio en la base de datos (la migración `avatar_required`
+rellena los usuarios antiguos). El seed crea 5 avatares en `/static/avatars/1.png` …
+`5.png`.
 
 ### Reglas de negocio
 
