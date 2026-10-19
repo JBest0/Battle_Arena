@@ -25,11 +25,11 @@ model User {
   emailVerified Boolean  @default(false) @map("email_verified")
   displayName   String?  @map("display_name")
   bio           String?
-  avatarId      String?  @map("avatar_id") @db.Uuid
+  avatarId      String   @map("avatar_id") @db.Uuid
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
-  avatar                    Avatar?                   @relation("CurrentAvatar", fields: [avatarId], references: [id], onDelete: SetNull)
+  avatar                    Avatar                    @relation("CurrentAvatar", fields: [avatarId], references: [id], onDelete: Restrict)
   uploadedAvatars           Avatar[]                  @relation("AvatarOwner")
   emailVerificationTokens   EmailVerificationToken[]
   passwordResetTokens       PasswordResetToken[]
