@@ -329,17 +329,100 @@ Ante un `401 UNAUTHORIZED` o `TOKEN_EXPIRED_SESSION`, el interceptor de
 y navega a `/login` con el mensaje. Para mostrar `EMAIL_NOT_VERIFIED` en cualquier
 pantalla, usa `getErrorCode` de `utils/apiErrors.js`.
 
-### `uploadAvatar`
+## Avatares (US-06)
 
-Middleware de multer configurado para avatares (PNG/JPEG/WebP, máximo 2 MB, nombre
-UUID en `UPLOADS_DIR`). Los errores se convierten en `400 INVALID_FILE`.
+Cada jugador tiene siempre un avatar: al registrarse recibe el primer avatar `DEFAULT`.
+El seed crea 5 avatares en `/static/avatars/1.png` … `5.png`.
+
+### Reglas de negocio
+
+- Un avatar `UPLOADED` pertenece a un solo usuario (`ownerId`) y solo ese usuario puede
+  usarlo. Si otro jugador intenta seleccionarlo, la respuesta es el mismo `404` que para
+  un avatar inexistente.
+- Cada usuario tiene como máximo **un** avatar subido. Al subir otro se crea el nuevo, se
+  asigna al usuario y se borran el registro y el archivo del anterior.
+- Si el usuario vuelve a un avatar `DEFAULT`, su avatar subido se conserva para poder
+  elegirlo de nuevo.
+- Formatos: PNG, JPEG y WEBP; máximo 2 MB. La imagen se normaliza a 256×256 WEBP
+  (`sharp`: recorte central, sin EXIF y validada como imagen decodificable).
+
+### Endpoints
+
+| Método | Ruta | Auth | Respuesta |
+| --- | --- | --- | --- |
+| GET | `/api/avatars/defaults` | — | 200 `{ avatars: [{ id, url }] }` |
+| GET | `/api/users/me/avatars` | Bearer | 200 `{ currentAvatarId, defaults, uploaded }` |
+| PUT | `/api/users/me/avatar` | Bearer | 200 `{ user }` |
+| POST | `/api/users/me/avatar/upload` | Bearer | 201 `{ user }` |
+| GET | `/api/users/:id/public` | Bearer | 200 `{ id, username, avatarUrl }` |
+
+Ninguna requiere correo verificado. `PUT /api/users/me/avatar` recibe
+`{ "avatarId": "uuid" }` y responde con el usuario actualizado (`toPublicUser`).
+`POST /api/users/me/avatar/upload` recibe `multipart/form-data` con el campo `avatar`.
+
+Errores:
+
+| Status | Código | Cuándo |
+| --- | --- | --- |
+| 404 | `AVATAR_NOT_FOUND` | El avatar no existe o pertenece a otro usuario. |
+| 404 | `USER_NOT_FOUND` | El jugador de `/api/users/:id/public` no existe. |
+| 400 | `VALIDATION_ERROR` | `avatarId` faltante o que no es un UUID (`fields.avatarId`). |
+| 400 | `FILE_TOO_LARGE` | La imagen supera 2 MB. |
+| 400 | `INVALID_FILE_TYPE` | El mimetype no es PNG, JPEG ni WEBP. |
+| 400 | `INVALID_IMAGE` | Los magic numbers no coinciden o sharp no puede decodificarla. |
+| 400 | `FILE_REQUIRED` | La petición no incluye el campo `avatar`. |
+| 401 | `UNAUTHORIZED` | Falta el token o no es válido. |
+
+### `FileStorage`
+
+`uploadAvatarMiddleware` usa `memoryStorage` (nada se escribe en disco hasta validar y
+normalizar) con límite de 2 MB y un solo archivo en el campo `avatar`. El servicio llama:
 
 ```js
-const { uploadAvatar } = require('../infrastructure/FileStorage');
+const saved = await fileStorage.saveAvatar(req.file.buffer);
+// { url: '/uploads/avatars/<uuid>.webp', path }
 
-router.post('/avatar', requireAuth, uploadAvatar, controller.updateAvatar);
-// En el controlador: fileStorage.saveAvatar(req.file) => '/uploads/<uuid>.png'
+await fileStorage.deleteAvatarFile(url); // solo acepta /uploads/avatars/…
 ```
+
+Los archivos se sirven desde `/uploads` con `Cache-Control: public, max-age=31536000,
+immutable`; es seguro porque cada archivo tiene un nombre UUID nuevo.
+
+`sharp` trae binarios precompilados para `linux-musl-x64`, así que el `Dockerfile` sigue
+sobre `node:20-alpine`. Si alguna arquitectura no encuentra binario, cambia la imagen base
+a `node:20-slim`.
+
+### Usar el avatar en la partida y en todas las pantallas
+
+- `components/AvatarImage.jsx` es el componente reutilizable: recibe `src`, `username`,
+  `size` (40 por defecto) y `className`, y cae a un círculo con la inicial si la imagen
+  falla.
+- `components/PlayerBadge.jsx` combina `AvatarImage` con el username. Ya aparece en
+  `Layout` y en `GameWindowLayout`.
+- `components/GameWindowLayout.jsx` se usa para ventanas completas (arena, victoria):
+  barra superior compacta con `PlayerBadge` y `<Outlet/>` ocupando el resto.
+- **La arena, la sala de espera, la pantalla de victoria y cualquier otra pantalla deben
+  usar `AvatarImage` o `PlayerBadge`** (CA-06.5). Para ventanas del juego, envuélvelas en
+  `<GameWindowLayout>`.
+- `src/game/playerView.js` expone `toPlayerView({ id, username, avatarUrl })` para
+  normalizar el jugador que dibuja la arena.
+- El backend expone `avatarService.getPublicPlayer(userId)`; el módulo de partida debe
+  incluirlo (o el resultado de `GET /api/users/:id/public`) en el estado que envía por
+  sockets para que cada cliente reciba el `avatarUrl` de todos los jugadores.
+
+### Sesión y ventanas nuevas
+
+La sesión vive en `sessionStorage`. Una ventana abierta desde la app con
+`window.open(url)` hereda una copia de `sessionStorage`, pero **no** si se abre con
+`noopener` ni si el usuario la abre a mano en otra pestaña. Para la arena y la pantalla de
+victoria usen:
+
+```js
+window.open('/arena', 'arena'); // sin noopener
+```
+
+Si más adelante hace falta compartir la sesión entre pestañas, cambia el almacenamiento a
+`localStorage` en `AuthContext.jsx`; es un solo punto.
 
 ## Base de datos
 
@@ -362,9 +445,9 @@ npm test
 npm run lint
 ```
 
-Las pruebas usan Jest + Supertest contra `app.js` y no requieren una base de datos real
-(la consulta del health check está mockeada). El job de CI sí levanta PostgreSQL y
-aplica las migraciones.
+Las pruebas usan Jest + Supertest contra `app.js`. Las de autenticación y avatares
+necesitan PostgreSQL con las migraciones aplicadas y usan una carpeta temporal para
+`UPLOADS_DIR`; el job de CI levanta PostgreSQL y aplica las migraciones.
 
 ## Desarrollo sin Docker
 
@@ -412,9 +495,9 @@ chore(ci): cachear dependencias
 
 - `GET /api/health` verifica la conexión con `SELECT 1` y responde `503` si la base falla.
 - `POST /api/auth/register` (US-01), `POST /api/auth/login`, `GET /api/auth/me` y
-  `POST /api/auth/logout` (US-03) están implementados. El resto de `/api/users/*` y
-  `/api/avatars/defaults` responde `501 NOT_IMPLEMENTED` hasta que cada equipo
-  implemente su módulo.
+  `POST /api/auth/logout` (US-03), y los endpoints de avatares (US-06) están
+  implementados. El resto de `/api/users/*` responde `501 NOT_IMPLEMENTED` hasta que cada
+  equipo implemente su módulo.
 - Los avatares por defecto se sirven en `/static/avatars/1.png` … `5.png`.
 - Los avatares subidos se guardan en `UPLOADS_DIR` y se sirven en `/uploads`.
 - `.env` está ignorado por git; solo se versiona `.env.example`.
