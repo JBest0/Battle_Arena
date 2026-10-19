@@ -79,6 +79,7 @@ describe('requireVerifiedEmail', () => {
         id: user.id,
         emailVerified: false,
       }),
+      isEmailVerified: jest.fn().mockResolvedValue(false),
     };
     const response = await request(buildVerifiedApp(userRepository))
       .get('/play')
@@ -87,9 +88,10 @@ describe('requireVerifiedEmail', () => {
     expect(response.status).toBe(403);
     expect(response.body.error.code).toBe('EMAIL_NOT_VERIFIED');
     expect(response.body.error.message).toBe(
-      'Debe verificar su correo para jugar'
+      'Debes verificar tu correo antes de iniciar una partida'
     );
     expect(userRepository.findById).toHaveBeenCalledWith(user.id);
+    expect(userRepository.isEmailVerified).toHaveBeenCalledWith(user.id);
   });
 
   it('permite el paso cuando el correo está verificado', async () => {
@@ -98,6 +100,7 @@ describe('requireVerifiedEmail', () => {
         id: user.id,
         emailVerified: true,
       }),
+      isEmailVerified: jest.fn().mockResolvedValue(true),
     };
     const response = await request(buildVerifiedApp(userRepository))
       .get('/play')
