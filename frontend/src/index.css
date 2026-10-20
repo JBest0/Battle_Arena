@@ -751,3 +751,143 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* ---- Visualización de la arena ---- */
+.arena-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.arena-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.arena-toolbar h2 {
+  margin: 0;
+}
+
+.arena-config-summary {
+  margin: 4px 0 0;
+  color: #52606d;
+}
+
+.arena-toolbar-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.arena-page .alert {
+  margin: 0;
+}
+
+.arena-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .arena-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.arena-stage {
+  overflow: hidden;
+  border-radius: 12px;
+  background-color: #16212c;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.18);
+}
+
+.arena-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.arena-hud {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 12px;
+  background-color: #ffffff;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.08);
+}
+
+.arena-hud-stats {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.arena-hud-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.arena-hud-label {
+  color: #7b8794;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.arena-hud-value {
+  font-weight: 600;
+}
+
+.arena-hud-value-big {
+  font-size: 1.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.arena-hud .alert {
+  margin: 0;
+}
+
+.arena-scoreboard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.arena-score-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.arena-score-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.arena-score-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.arena-score-points {
+  font-size: 1.2rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
