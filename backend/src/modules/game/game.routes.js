@@ -1,6 +1,5 @@
 const express = require('express');
 const { gameController } = require('../../container');
-const { AppError } = require('../../shared/AppError');
 const { asyncHandler } = require('../../shared/asyncHandler');
 const { validate } = require('../../shared/middleware/validate');
 const { requireAuth } = require('../../shared/middleware/requireAuth');
@@ -9,12 +8,23 @@ const { gameConfigSchema, matchIdParamsSchema } = require('./game.schemas');
 
 const router = express.Router();
 
+// Todas las rutas del juego exigen sesión y correo verificado (CA-02.5): no quitar
+// requireAuth ni requireVerifiedEmail de ninguna.
+
 // Configuración del juego: límites, valores por defecto y dimensiones de la arena.
 router.get(
   '/options',
   requireAuth,
   requireVerifiedEmail,
   asyncHandler(gameController.getOptions.bind(gameController))
+);
+
+// Partidas en espera a las que el jugador se puede unir.
+router.get(
+  '/matches',
+  requireAuth,
+  requireVerifiedEmail,
+  asyncHandler(gameController.listOpenMatches.bind(gameController))
 );
 
 // Crea una partida en espera con la configuración elegida en la sala de juego.
@@ -26,7 +36,7 @@ router.post(
   asyncHandler(gameController.createMatch.bind(gameController))
 );
 
-// Configuración y jugadores de una partida (la usan la sala de juego y la arena).
+// Configuración y jugadores de una partida (la usan la sala de espera y la arena).
 router.get(
   '/matches/:id',
   requireAuth,
@@ -35,16 +45,22 @@ router.get(
   asyncHandler(gameController.getMatch.bind(gameController))
 );
 
-// Módulo de partida: reemplazar el handler; NO quitar requireAuth ni requireVerifiedEmail (CA-02.5)
+// El jugador entra a una partida en espera (si ya está dentro, responde igual).
 router.post(
-  '/join',
+  '/matches/:id/join',
   requireAuth,
   requireVerifiedEmail,
-  asyncHandler(async (req, res, next) => {
-    return next(
-      new AppError(501, 'NOT_IMPLEMENTED', 'Módulo de partida no implementado')
-    );
-  })
+  validate(matchIdParamsSchema, 'params'),
+  asyncHandler(gameController.joinMatch.bind(gameController))
+);
+
+// El anfitrión inicia la partida: pasa de WAITING a IN_PROGRESS.
+router.post(
+  '/matches/:id/start',
+  requireAuth,
+  requireVerifiedEmail,
+  validate(matchIdParamsSchema, 'params'),
+  asyncHandler(gameController.startMatch.bind(gameController))
 );
 
 module.exports = { gameRouter: router };

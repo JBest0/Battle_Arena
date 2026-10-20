@@ -1,11 +1,22 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { getGameOptions, getMatch, getErrorMessage } from '../api/game';
+import {
+  getErrorMessage,
+  getGameOptions,
+  joinMatch,
+  startMatch,
+} from '../api/game';
 import { useAuth } from '../auth/AuthContext';
 import ArenaCanvas from '../components/game/ArenaCanvas';
 import ArenaHud from '../components/game/ArenaHud';
+import WaitingRoom from '../components/game/WaitingRoom';
 import { describeConfig } from '../game/gameConfig';
+import { useMatch } from '../hooks/useMatch';
 import { useMockArena } from '../hooks/useMockArena';
+
+function errorText(err) {
+  return err.response ? getErrorMessage(err) : 'No se pudo conectar con el servidor';
+}
 
 function ArenaScreen({ match, arena, currentUserId }) {
   // Cuando exista tiempo real, reemplazar useMockArena por el hook con sockets:
@@ -50,84 +61,118 @@ function ArenaScreen({ match, arena, currentUserId }) {
   );
 }
 
-// Visualización de la arena. Esta ruta sigue dentro de <VerifiedRoute> (CA-03.4).
+function Message({ title = 'Arena', children, linkLabel, error }) {
+  return (
+    <section className="card game-config-card">
+      <h2>{title}</h2>
+      {error ? (
+        <p className="alert alert-error" role="alert">
+          {error}
+        </p>
+      ) : (
+        <p>{children}</p>
+      )}
+      {linkLabel && (
+        <Link className="button" to="/lobby">
+          {linkLabel}
+        </Link>
+      )}
+    </section>
+  );
+}
+
+// Una partida pasa por tres estados: WAITING (sala de espera), IN_PROGRESS (arena) y
+// FINISHED. Esta ruta sigue dentro de <VerifiedRoute> (CA-03.4).
 export default function ArenaPage() {
   const [searchParams] = useSearchParams();
   const matchId = searchParams.get('match');
   const { user } = useAuth();
-  const [data, setData] = useState({ status: 'loading' });
+  const { match, error, loading, setMatch } = useMatch(matchId);
+  const [options, setOptions] = useState(null);
+  const [optionsError, setOptionsError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState('');
 
   useEffect(() => {
-    if (!matchId) return undefined;
-
     let active = true;
-    setData({ status: 'loading' });
 
-    Promise.all([getMatch(matchId), getGameOptions()])
-      .then(([matchData, options]) => {
-        if (active) {
-          setData({
-            status: 'ready',
-            match: matchData.match,
-            arena: options.arena,
-          });
-        }
+    getGameOptions()
+      .then((data) => {
+        if (active) setOptions(data);
       })
       .catch((err) => {
-        if (active) {
-          setData({
-            status: 'error',
-            message: err.response
-              ? getErrorMessage(err)
-              : 'No se pudo conectar con el servidor',
-          });
-        }
+        if (active) setOptionsError(errorText(err));
       });
 
     return () => {
       active = false;
     };
-  }, [matchId]);
+  }, []);
+
+  async function runAction(action) {
+    setBusy(true);
+    setActionError('');
+
+    try {
+      const data = await action(matchId);
+      setMatch(data.match);
+    } catch (err) {
+      setActionError(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (!matchId) {
     return (
-      <section className="card game-config-card">
-        <h2>Arena</h2>
-        <p>Primero crea una partida en la sala de juego.</p>
-        <Link className="button" to="/lobby">
-          Ir a la sala de juego
-        </Link>
-      </section>
+      <Message linkLabel="Ir a la sala de juego">
+        Primero crea o elige una partida en la sala de juego.
+      </Message>
     );
   }
 
-  if (data.status === 'loading') {
+  if (error || optionsError) {
+    return <Message error={error || optionsError} linkLabel="Volver a la sala de juego" />;
+  }
+
+  if (loading || !match || !options) {
+    return <Message>Cargando partida…</Message>;
+  }
+
+  if (match.status === 'WAITING') {
     return (
-      <section className="card game-config-card">
-        <h2>Arena</h2>
-        <p>Cargando partida…</p>
-      </section>
+      <WaitingRoom
+        match={match}
+        currentUserId={user?.id}
+        minPlayers={options.minPlayersToStart}
+        busy={busy}
+        error={actionError}
+        onJoin={() => runAction(joinMatch)}
+        onStart={() => runAction(startMatch)}
+      />
     );
   }
 
-  if (data.status === 'error') {
+  if (match.status === 'FINISHED') {
     return (
-      <section className="card game-config-card">
-        <h2>Arena</h2>
-        <p className="alert alert-error" role="alert">
-          {data.message}
-        </p>
-        <Link className="button" to="/lobby">
-          Volver a la sala de juego
-        </Link>
-      </section>
+      <Message linkLabel="Volver a la sala de juego">
+        Esta partida ya terminó. Puedes ver tus resultados en tu perfil.
+      </Message>
+    );
+  }
+
+  if (!match.players.some((player) => player.id === user?.id)) {
+    return (
+      <Message linkLabel="Volver a la sala de juego">
+        Esta partida ya comenzó y no participas en ella.
+      </Message>
     );
   }
 
   return (
     <ArenaScreen
-      match={data.match}
-      arena={data.arena}
+      match={match}
+      arena={options.arena}
       currentUserId={user?.id}
     />
   );

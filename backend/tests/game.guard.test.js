@@ -45,8 +45,10 @@ function signToken(user) {
   );
 }
 
+const SOME_MATCH_ID = '00000000-0000-4000-8000-0000000000ff';
+
 function join(token) {
-  const req = request(app).post('/api/game/join');
+  const req = request(app).post(`/api/game/matches/${SOME_MATCH_ID}/join`);
   return token ? req.set('Authorization', `Bearer ${token}`) : req;
 }
 
@@ -71,7 +73,7 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
-describe('CA-02.5: POST /api/game/join', () => {
+describe('CA-02.5: POST /api/game/matches/:id/join', () => {
   it('rechaza la petición sin token con 401', async () => {
     const response = await join(null);
 
@@ -95,7 +97,7 @@ describe('CA-02.5: POST /api/game/join', () => {
     );
   });
 
-  it('deja pasar a un usuario verificado hasta el handler (501)', async () => {
+  it('deja pasar a un usuario verificado hasta el handler (404 si la partida no existe)', async () => {
     const user = await createUser({
       username: 'verificado',
       email: 'si@test.com',
@@ -104,8 +106,8 @@ describe('CA-02.5: POST /api/game/join', () => {
 
     const response = await join(signToken(user));
 
-    expect(response.status).toBe(501);
-    expect(response.body.error.code).toBe('NOT_IMPLEMENTED');
+    expect(response.status).toBe(404);
+    expect(response.body.error.code).toBe('MATCH_NOT_FOUND');
   });
 
   it('assertSocketUserVerified rechaza a un usuario no verificado', async () => {

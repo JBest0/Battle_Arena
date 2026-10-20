@@ -1,3 +1,4 @@
+const { EventEmitter } = require('events');
 const config = require('./config');
 const { EmailService } = require('./infrastructure/EmailService');
 const { FileStorage } = require('./infrastructure/FileStorage');
@@ -57,7 +58,13 @@ const statsService = new StatsService({
   unitOfWork,
 });
 
-const gameService = new GameService({ gameRepository });
+// Eventos del juego (`matchStarted`): el módulo de tiempo real se suscribe aquí.
+const gameEvents = new EventEmitter();
+const gameService = new GameService({
+  gameRepository,
+  unitOfWork,
+  gameEvents,
+});
 
 const authController = new AuthController({ authService });
 const usersController = new UsersController({ usersService, avatarService });
@@ -82,6 +89,7 @@ module.exports = {
   avatarService,
   statsService,
   gameService,
+  gameEvents,
   authController,
   usersController,
   statsController,

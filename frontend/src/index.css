@@ -891,3 +891,96 @@ body {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
+
+/* ---- Inicio de partida: partidas abiertas y sala de espera ---- */
+.lobby-subtitle {
+  margin: 20px 0 10px;
+  font-size: 1.05rem;
+}
+
+.lobby-create {
+  margin-top: 16px;
+}
+
+.lobby-create .lobby-subtitle {
+  margin-top: 0;
+}
+
+.open-matches,
+.waiting-players {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.open-match {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #d5dde5;
+  border-radius: 10px;
+}
+
+.open-match-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.open-match-title {
+  font-weight: 600;
+}
+
+.open-match-meta {
+  color: #52606d;
+  font-size: 0.9rem;
+}
+
+.waiting-count {
+  margin: 0 0 12px;
+  font-weight: 600;
+}
+
+.waiting-player {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background-color: #f0f4f8;
+}
+
+.waiting-player-name {
+  flex: 1;
+  font-weight: 600;
+}
+
+.waiting-player-tags {
+  color: #52606d;
+  font-size: 0.85rem;
+}
+
+.waiting-player-empty {
+  justify-content: center;
+  border: 2px dashed #b8c4ce;
+  background: transparent;
+  color: #7b8794;
+}
+
+.waiting-back {
+  margin: 16px 0 0;
+}
+
+.waiting-count {
+  margin-top: 4px;
+}
+
+.waiting-back a {
+  color: #2a9d8f;
+  font-weight: 600;
+}

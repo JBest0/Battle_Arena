@@ -10,6 +10,13 @@ const GAME_LIMITS = {
   maxPlayers: { min: 2, max: 4, default: 2 },
 };
 
+// Mínimo de jugadores para que el anfitrión pueda iniciar la partida.
+const MIN_PLAYERS_TO_START = 2;
+
+// Las partidas en espera más viejas que esto ya no se ofrecen en la sala de juego.
+const OPEN_MATCH_MAX_AGE_MINUTES = 30;
+const OPEN_MATCHES_LIMIT = 20;
+
 const DEFAULT_GAME_CONFIG = {
   endMode: 'TIME',
   durationSeconds: GAME_LIMITS.durationSeconds.default,
@@ -49,6 +56,9 @@ function normalizeConfig(input = {}) {
 module.exports = {
   END_MODES,
   GAME_LIMITS,
+  MIN_PLAYERS_TO_START,
+  OPEN_MATCH_MAX_AGE_MINUTES,
+  OPEN_MATCHES_LIMIT,
   DEFAULT_GAME_CONFIG,
   ARENA,
   normalizeConfig,
