@@ -15,6 +15,9 @@ const { StatsRepository } = require('./modules/stats/stats.repository');
 const { MatchRepository } = require('./modules/stats/match.repository');
 const { StatsService } = require('./modules/stats/stats.service');
 const { StatsController } = require('./modules/stats/stats.controller');
+const { GameRepository } = require('./modules/game/game.repository');
+const { GameService } = require('./modules/game/game.service');
+const { GameController } = require('./modules/game/game.controller');
 const {
   AchievementEvaluator,
 } = require('./modules/stats/achievements/AchievementEvaluator');
@@ -25,6 +28,7 @@ const avatarRepository = new AvatarRepository();
 const tokenRepository = new TokenRepository();
 const statsRepository = new StatsRepository();
 const matchRepository = new MatchRepository();
+const gameRepository = new GameRepository();
 const achievementEvaluator = new AchievementEvaluator(rules);
 const emailService = new EmailService(config);
 const fileStorage = new FileStorage(config);
@@ -53,9 +57,12 @@ const statsService = new StatsService({
   unitOfWork,
 });
 
+const gameService = new GameService({ gameRepository });
+
 const authController = new AuthController({ authService });
 const usersController = new UsersController({ usersService, avatarService });
 const statsController = new StatsController({ statsService });
+const gameController = new GameController({ gameService });
 
 module.exports = {
   config,
@@ -64,6 +71,7 @@ module.exports = {
   tokenRepository,
   statsRepository,
   matchRepository,
+  gameRepository,
   achievementEvaluator,
   emailService,
   fileStorage,
@@ -73,7 +81,9 @@ module.exports = {
   usersService,
   avatarService,
   statsService,
+  gameService,
   authController,
   usersController,
   statsController,
+  gameController,
 };
