@@ -362,8 +362,9 @@ router.post('/', validate(matchSchema), controller.create);
 
 ### `verifySocketToken(token)`
 
-Devuelve `{ id, username }` o lanza un error. Pensado para el módulo de tiempo real. El
-cliente debe enviar el mismo JWT que usa HTTP:
+Devuelve `{ id, username }` o lanza un error. Pensado para el módulo de tiempo real
+ (`modules/realtime`, ver [Partida y arena](#partida-y-arena)). El cliente debe enviar el mismo 
+ JWT que usa HTTP; el frontend ya lo hace en `src/api/socket.js`:
 
 ```js
 const socket = io('http://localhost:3000', {
@@ -655,6 +656,112 @@ const result = await statsService.recordMatchResult(matchId);
 tal cual para el **podio** y el **ranking del Sprint 3**. `AvatarImage` y `PlayerBadge`
 siguen siendo la forma estándar de mostrar jugadores.
 
+
+## Partida y arena
+
+Flujo completo: el jugador **crea** una partida (o se **une** a una abierta), espera en la
+**sala de espera**, el anfitrión la **inicia** y todos juegan **a la vez** en la arena. Al
+terminar se guardan los puntajes y se actualizan estadísticas, ranking y logros.
+
+```
+WAITING ──(anfitrión inicia)──▶ IN_PROGRESS ──(fin de tiempo o puntos)──▶ FINISHED
+ sin startedAt                  con startedAt                             con endedAt
+```
+
+### Configuración del juego
+
+Se elige al crear la partida. Los límites viven en `backend/src/modules/game/game.config.js`
+(fuente única) y el frontend los lee de `GET /api/game/options`.
+
+| Campo | Rango | Por defecto | Aplica a |
+| --- | --- | --- | --- |
+| `endMode` | `TIME` o `POINTS` | `TIME` | siempre |
+| `durationSeconds` | 30–600 | 180 | solo `TIME` (en `POINTS` queda `null`) |
+| `targetPoints` | 5–200 | 50 | solo `POINTS` (en `TIME` queda `null`) |
+| `maxPlayers` | 2–4 | 2 | siempre |
+
+Para iniciar hacen falta al menos 2 jugadores (`minPlayersToStart`).
+
+### Endpoints (`/api/game`)
+
+Todos exigen sesión y correo verificado (`requireAuth` + `requireVerifiedEmail`, CA-02.5).
+
+| Método | Ruta | Respuesta |
+| --- | --- | --- |
+| GET | `/options` | `200 { endModes, limits, defaults, arena, minPlayersToStart }` |
+| GET | `/matches` | `200 { matches }`: partidas en espera de los últimos 30 minutos (máx. 20) |
+| POST | `/matches` | `201 { match }`; `400 VALIDATION_ERROR` con `fields` por campo |
+| GET | `/matches/:id` | `200 { match }`; `404 MATCH_NOT_FOUND` |
+| POST | `/matches/:id/join` | `200 { match }`; idempotente. `409 MATCH_FULL` o `MATCH_ALREADY_STARTED` |
+| POST | `/matches/:id/start` | `200 { match }`. `403 NOT_MATCH_CREATOR`, `409 NOT_ENOUGH_PLAYERS` o `MATCH_ALREADY_STARTED` |
+
+`match` = `{ id, status, config, createdById, createdAt, startedAt, endedAt, players }`,
+con `players: [{ id, username, avatarUrl, score }]`. Una partida en espera **no** aparece en
+el historial (que solo cuenta las que tienen `endedAt`).
+
+`join` y `start` bloquean la fila de la partida (`SELECT … FOR UPDATE`) dentro de una
+transacción, así que dos jugadores que se unen a la vez no superan el cupo. Al iniciar,
+`GameService` emite `matchStarted` en `gameEvents` (después del commit); el módulo de
+tiempo real escucha ese evento para arrancar la partida.
+
+### Tiempo real (`modules/realtime`)
+
+Socket.IO comparte el servidor HTTP y el puerto de la API. La conexión se autentica con
+`verifySocketToken` + `assertSocketUserVerified`.
+
+| Dirección | Evento | Contenido |
+| --- | --- | --- |
+| cliente → servidor | `match:join` `{ matchId }` | ack `{ ok, status, state? }` o `{ ok: false, code, message }` (`NOT_A_PLAYER`, `MATCH_NOT_ACTIVE`, `MATCH_NOT_FOUND`…) |
+| cliente → servidor | `player:input` `{ dx, dy }` | dirección deseada (-1..1 por eje); se normaliza en el servidor |
+| servidor → cliente | `arena:state` | estado de la arena, 30 veces por segundo |
+| servidor → cliente | `match:finished` | estado final, ya guardado el resultado |
+
+El servidor es **autoritativo**: `arenaEngine.js` mueve a todos los jugadores a la vez,
+reparte los ítems y cuenta los puntos; `matchRoomManager.js` lo avanza con un temporizador y
+difunde el estado; `realtime.socket.js` conecta los sockets.
+
+- Cuenta regresiva de 5 s antes de empezar, para que todos conecten.
+- Cada ítem es del jugador más cercano que lo toque (+1 punto). Siempre hay 4 en la arena.
+- `TIME` termina al agotarse el tiempo; `POINTS`, cuando alguien llega al objetivo. Ganan
+  todos los que tengan el puntaje más alto: un empate deja `winnerId` en `null`.
+- Si nadie está conectado durante 30 s, o la partida pasa de 15 minutos, se cierra con los
+  puntajes que tenga.
+- Los valores (velocidad 220, ítems, cuenta regresiva, tick de 30 Hz, tiempos de seguridad
+  y la arena de 800×500) están en `GAMEPLAY` y `ARENA` de `game.config.js`.
+
+**Control del jugador.** Hoy es el teclado (W A S D o flechas), que envía `player:input`.
+El módulo de hardware debe traducir el control ESP32 a la misma dirección `dx`/`dy` y
+entregarla a `manager.setInput(matchId, userId, dx, dy)` (o enviar `player:input`); el
+motor no necesita cambios.
+
+### Frontend
+
+| Ruta | Pantalla |
+| --- | --- |
+| `/lobby` | Sala de juego: partidas abiertas (se refresca cada 3 s) y formulario para crear |
+| `/arena?match=<id>` | Sala de espera, arena en curso o aviso de partida terminada, según el estado |
+
+Ambas siguen dentro de `<VerifiedRoute>` (CA-03.4).
+
+- `components/game/`: `GameConfigForm`, `OpenMatchesList`, `WaitingRoom`, `ArenaCanvas`
+  (canvas 2D con los avatares y la inicial como respaldo) y `ArenaHud` (modo, reloj u
+  objetivo, marcador con `AvatarImage` y resultado).
+- `hooks/`: `useMatch` (consulta la partida mientras espera, sin retroceder de estado),
+  `useArenaSocket` (devuelve `{ stateRef, hud, connection, sendInput }`) y
+  `useKeyboardInput`.
+- `game/arenaState.js` documenta el contrato del estado de la arena. El canvas lee
+  `stateRef` en cada frame, así que los 30 mensajes por segundo no re-renderizan React; el
+  `hud` (marcador y reloj) se actualiza unas 5 veces por segundo.
+- Vite (`vite.config.js`) y nginx (`nginx.conf`) reenvían `/socket.io` como WebSocket.
+
+### Límites conocidos
+
+- Las partidas en curso viven en la memoria del backend: con varias instancias o tras un
+  reinicio, una partida `IN_PROGRESS` pierde su motor (los jugadores ven
+  `MATCH_NOT_ACTIVE`).
+- No hay "salir de la sala de espera" ni expulsar jugadores.
+- El control físico ESP32 (módulo de hardware) está pendiente.
+
 ## Base de datos
 
 - PostgreSQL 16 + Prisma.
@@ -676,9 +783,15 @@ npm test
 npm run lint
 ```
 
-Las pruebas usan Jest + Supertest contra `app.js`. Las de autenticación y avatares
-necesitan PostgreSQL con las migraciones aplicadas y usan una carpeta temporal para
-`UPLOADS_DIR`; el job de CI levanta PostgreSQL y aplica las migraciones.
+Las pruebas usan Jest + Supertest contra `app.js`. Las de autenticación, avatares y las
+de la API de partidas (`game.matches.test.js`, `game.start.api.test.js`) necesitan
+PostgreSQL con las migraciones aplicadas y usan una carpeta temporal para `UPLOADS_DIR`;
+el job de CI levanta PostgreSQL y aplica las migraciones.
+
+Las del juego que **no** necesitan base de datos: `arenaEngine`, `matchRoomManager`,
+`realtime.socket` (socket.io real con `socket.io-client`), `game.config`, `game.start` y
+`game.finish`. Usan `tests/helpers/inMemoryGame.js`, un repositorio en memoria con la
+misma interfaz que `GameRepository`.
 
 ## Desarrollo sin Docker
 
@@ -699,14 +812,15 @@ npm install
 npm run dev
 ```
 
-Vite hace proxy de `/api`, `/static` y `/uploads` a `http://localhost:3000`.
+Vite hace proxy de `/api`, `/static`, `/uploads` y `/socket.io` (WebSocket) 
+a `http://localhost:3000`.
 
 ## Ramas y commits
 
 Estrategia de ramas:
 
 ```
-main ← develop ← feature/US-XX-nombre
+main <= develop <= feature/US-XX-nombre
 ```
 
 Todo cambio entra por Pull Request hacia `develop` con CI en verde. `develop` se
@@ -730,6 +844,10 @@ chore(ci): cachear dependencias
   `POST /api/auth/reset-password` (US-05), los endpoints de avatares (US-06), y los de
   perfil, historial y ranking (US-04) están implementados. El resto de `/api/users/*`
   responde `501 NOT_IMPLEMENTED` hasta que cada equipo implemente su módulo.
+- Los endpoints de partida (`/api/game/*`: opciones, crear, listar, unirse, iniciar y
+  consultar) y el tiempo real por Socket.IO están implementados; ver
+  [Partida y arena](#partida-y-arena). Para estrenar la migración de partidas:
+  `npx prisma migrate deploy`.
 - Los avatares por defecto se sirven en `/static/avatars/1.png` … `5.png`.
 - Los avatares subidos se guardan en `UPLOADS_DIR` y se sirven en `/uploads`.
 - `.env` está ignorado por git; solo se versiona `.env.example`.
