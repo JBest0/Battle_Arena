@@ -24,6 +24,16 @@ const DEFAULT_GAME_CONFIG = {
   maxPlayers: GAME_LIMITS.maxPlayers.default,
 };
 
+// Reglas de la partida en curso (las usa el motor de tiempo real).
+const GAMEPLAY = {
+  playerSpeed: 220, // unidades de arena por segundo
+  itemsOnField: 4, // ítems simultáneos en la arena
+  countdownSeconds: 5, // cuenta regresiva antes de empezar (da tiempo a que todos conecten)
+  tickRate: 30, // actualizaciones por segundo
+  abandonSeconds: 30, // sin ningún jugador conectado: la partida se cierra
+  maxMatchSeconds: 900, // tope de seguridad (sobre todo para el modo por puntos)
+};
+
 // Dimensiones lógicas de la arena (unidades de juego, no píxeles).
 const ARENA = {
   width: 800,
@@ -60,6 +70,7 @@ module.exports = {
   OPEN_MATCH_MAX_AGE_MINUTES,
   OPEN_MATCHES_LIMIT,
   DEFAULT_GAME_CONFIG,
+  GAMEPLAY,
   ARENA,
   normalizeConfig,
 };

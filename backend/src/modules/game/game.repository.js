@@ -57,6 +57,21 @@ class GameRepository {
   markStarted(matchId, startedAt, tx = this.db) {
     return tx.match.update({ where: { id: matchId }, data: { startedAt } });
   }
+
+  // Cierra la partida: fecha de fin, ganador (null si hay empate) y puntaje de cada jugador.
+  async finishMatch(matchId, { endedAt, winnerId, scores }, tx = this.db) {
+    await tx.match.update({
+      where: { id: matchId },
+      data: { endedAt, winnerId },
+    });
+
+    for (const [userId, finalScore] of Object.entries(scores)) {
+      await tx.matchParticipant.update({
+        where: { matchId_userId: { matchId, userId } },
+        data: { finalScore },
+      });
+    }
+  }
 }
 
 module.exports = { GameRepository };

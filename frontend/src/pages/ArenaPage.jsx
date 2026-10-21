@@ -12,16 +12,18 @@ import ArenaHud from '../components/game/ArenaHud';
 import WaitingRoom from '../components/game/WaitingRoom';
 import { describeConfig } from '../game/gameConfig';
 import { useMatch } from '../hooks/useMatch';
-import { useMockArena } from '../hooks/useMockArena';
+import { useArenaSocket } from '../hooks/useArenaSocket';
+import { useKeyboardInput } from '../hooks/useKeyboardInput';
 
 function errorText(err) {
   return err.response ? getErrorMessage(err) : 'No se pudo conectar con el servidor';
 }
 
 function ArenaScreen({ match, arena, currentUserId }) {
-  // Cuando exista tiempo real, reemplazar useMockArena por el hook con sockets:
-  // debe devolver { stateRef, hud } con la forma descrita en game/arenaState.js.
-  const { stateRef, hud, restart } = useMockArena(match, arena);
+  const { stateRef, hud, connection, error, sendInput } = useArenaSocket(match.id);
+  const status = hud?.status;
+
+  useKeyboardInput(sendInput, connection === 'connected' && status !== 'FINISHED');
 
   return (
     <div className="arena-page">
@@ -31,23 +33,40 @@ function ArenaScreen({ match, arena, currentUserId }) {
           <p className="arena-config-summary">{describeConfig(match.config)}</p>
         </div>
         <div className="arena-toolbar-actions">
-          <button type="button" className="button button-small" onClick={restart}>
-            Reiniciar demo
-          </button>
           <Link className="button button-small" to="/lobby">
-            Nueva partida
+            {status === 'FINISHED' ? 'Volver a la sala de juego' : 'Salir'}
           </Link>
         </div>
       </div>
 
-      <p className="alert alert-warning" role="status">
-        Vista previa local: el tiempo real y el control ESP32 aún no están conectados, así
-        que los movimientos son simulados y no se guardan estadísticas.
-      </p>
+      {connection === 'connecting' && (
+        <p className="alert alert-warning" role="status">
+          Conectando con la partida…
+        </p>
+      )}
+      {connection === 'reconnecting' && (
+        <p className="alert alert-warning" role="status">
+          Se perdió la conexión. Reconectando…
+        </p>
+      )}
+      {connection === 'error' && (
+        <p className="alert alert-error" role="alert">
+          {error}
+        </p>
+      )}
+      {connection === 'connected' && status === 'RUNNING' && (
+        <p className="arena-controls-hint">Muévete con W A S D o con las flechas.</p>
+      )}
 
       <div className="arena-layout">
         <div className="arena-stage">
           <ArenaCanvas stateRef={stateRef} arena={arena} />
+          {status === 'COUNTDOWN' && (
+            <div className="arena-countdown" role="status" aria-live="polite">
+              <span className="arena-countdown-label">Prepárate</span>
+              <span className="arena-countdown-number">{hud.countdown}</span>
+            </div>
+          )}
         </div>
         {hud && (
           <ArenaHud

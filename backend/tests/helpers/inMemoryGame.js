@@ -69,6 +69,15 @@ class InMemoryGameRepository {
   async markStarted(matchId, startedAt) {
     this.matches.get(matchId).startedAt = startedAt;
   }
+
+  async finishMatch(matchId, { endedAt, winnerId, scores }) {
+    const match = this.matches.get(matchId);
+    match.endedAt = endedAt;
+    match.winnerId = winnerId;
+    for (const participant of match.participants) {
+      participant.finalScore = scores[participant.userId] ?? participant.finalScore;
+    }
+  }
 }
 
 const inMemoryUnitOfWork = { run: (work) => work({}) };

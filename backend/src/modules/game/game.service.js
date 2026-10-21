@@ -185,6 +185,53 @@ class GameService {
 
     return view;
   }
+
+  /**
+   * Cierra una partida en curso con los puntajes finales del motor de tiempo real.
+   * Idempotente. Después hay que llamar a statsService.recordMatchResult(matchId).
+   *
+   * @param {string} matchId
+   * @param {{ scores: Record<string, number>, winnerIds: string[] }} result
+   */
+  async finishMatch(matchId, { scores, winnerIds }) {
+    return this.unitOfWork.run(async (tx) => {
+      await this.gameRepository.lockMatch(matchId, tx);
+      const match = await this.gameRepository.findMatchWithParticipants(
+        matchId,
+        tx
+      );
+
+      if (!match) {
+        throw matchNotFound();
+      }
+
+      if (match.endedAt) {
+        return toMatchView(match);
+      }
+
+      if (!match.startedAt) {
+        throw new AppError(
+          409,
+          'MATCH_NOT_STARTED',
+          'La partida todavía no comenzó'
+        );
+      }
+
+      await this.gameRepository.finishMatch(
+        matchId,
+        {
+          endedAt: this.clock(),
+          winnerId: winnerIds.length === 1 ? winnerIds[0] : null,
+          scores,
+        },
+        tx
+      );
+
+      return toMatchView(
+        await this.gameRepository.findMatchWithParticipants(matchId, tx)
+      );
+    });
+  }
 }
 
 module.exports = { GameService, toMatchView, matchStatus };

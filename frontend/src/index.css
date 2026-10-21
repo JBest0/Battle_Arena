@@ -984,3 +984,37 @@ body {
   color: #2a9d8f;
   font-weight: 600;
 }
+
+/* ---- Jugadores simultáneos: cuenta regresiva y controles ---- */
+.arena-stage {
+  position: relative;
+}
+
+.arena-countdown {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background-color: rgba(15, 23, 42, 0.55);
+  color: #ffffff;
+}
+
+.arena-countdown-label {
+  font-size: 1.1rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.arena-countdown-number {
+  font-size: 5rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.arena-controls-hint {
+  margin: 0;
+  color: #52606d;
+}

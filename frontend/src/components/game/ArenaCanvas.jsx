@@ -116,8 +116,7 @@ function drawPlayer(ctx, player, radius) {
   ctx.fillText(label, x, labelY);
 }
 
-function draw(ctx, canvas, state) {
-  const { arena } = state;
+function draw(ctx, canvas, state, arena) {
   const scale = canvas.width / arena.width;
 
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
@@ -129,8 +128,9 @@ function draw(ctx, canvas, state) {
 }
 
 /*
- * Dibuja la arena a partir de stateRef.current (ver game/arenaState.js). Lee el estado
- * en cada frame, así que las actualizaciones por socket no re-renderizan React.
+ * Dibuja la arena a partir de stateRef.current (ver game/arenaState.js) y las medidas de
+ * `arena`. Lee el estado en cada frame, así que las actualizaciones por socket no
+ * re-renderizan React.
  */
 export default function ArenaCanvas({ stateRef, arena }) {
   const canvasRef = useRef(null);
@@ -154,7 +154,7 @@ export default function ArenaCanvas({ stateRef, arena }) {
     function render() {
       const state = stateRef.current;
       if (state) {
-        draw(ctx, canvas, state);
+        draw(ctx, canvas, state, arena);
       }
       frame = requestAnimationFrame(render);
     }
