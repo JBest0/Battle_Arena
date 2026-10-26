@@ -44,6 +44,7 @@ model User {
   stats                     PlayerStats?
   achievements              UserAchievement[]
   wonMatches                Match[]                   @relation("MatchWinner")
+  createdMatches            Match[]                   @relation("MatchCreator")
   matchParticipants         MatchParticipant[]
 
   @@map("users")
@@ -135,8 +136,14 @@ model Match {
   endMode         EndMode   @map("end_mode")
   winnerId        String?   @map("winner_id") @db.Uuid
   statsRecordedAt DateTime? @map("stats_recorded_at")
+  maxPlayers      Int       @default(2) @map("max_players")
+  durationSeconds Int?      @map("duration_seconds")
+  targetPoints    Int?      @map("target_points")
+  createdById     String?   @map("created_by_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at")
 
   winner       User?              @relation("MatchWinner", fields: [winnerId], references: [id], onDelete: SetNull)
+  createdBy    User?              @relation("MatchCreator", fields: [createdById], references: [id], onDelete: SetNull)
   participants MatchParticipant[]
 
   @@index([endedAt])

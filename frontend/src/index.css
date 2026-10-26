@@ -683,3 +683,338 @@ body {
   color: #1d5d80;
   font-weight: 600;
 }
+
+/* ---- Configuración del juego (sala de juego) ---- */
+.game-config-card {
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.mode-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 0 0 18px;
+  padding: 0;
+  border: 0;
+}
+
+.mode-options legend {
+  margin-bottom: 8px;
+  padding: 0;
+  font-weight: 600;
+}
+
+.mode-options .field-error {
+  grid-column: 1 / -1;
+}
+
+.mode-option {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 2px solid #b8c4ce;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.mode-option-selected {
+  border-color: #2a9d8f;
+  background-color: #eef8f6;
+}
+
+.mode-option-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.mode-option-desc,
+.game-config-hint {
+  margin: 0;
+  color: #52606d;
+  font-size: 0.9rem;
+}
+
+.game-config-preview {
+  margin: 0 0 18px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background-color: #f0f4f8;
+  font-weight: 600;
+}
+
+@media (max-width: 520px) {
+  .mode-options {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- Visualización de la arena ---- */
+.arena-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.arena-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.arena-toolbar h2 {
+  margin: 0;
+}
+
+.arena-config-summary {
+  margin: 4px 0 0;
+  color: #52606d;
+}
+
+.arena-toolbar-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.arena-page .alert {
+  margin: 0;
+}
+
+.arena-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .arena-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.arena-stage {
+  overflow: hidden;
+  border-radius: 12px;
+  background-color: #16212c;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.18);
+}
+
+.arena-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.arena-hud {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 12px;
+  background-color: #ffffff;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.08);
+}
+
+.arena-hud-stats {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.arena-hud-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.arena-hud-label {
+  color: #7b8794;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.arena-hud-value {
+  font-weight: 600;
+}
+
+.arena-hud-value-big {
+  font-size: 1.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.arena-hud .alert {
+  margin: 0;
+}
+
+.arena-scoreboard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.arena-score-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.arena-score-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.arena-score-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.arena-score-points {
+  font-size: 1.2rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Inicio de partida: partidas abiertas y sala de espera ---- */
+.lobby-subtitle {
+  margin: 20px 0 10px;
+  font-size: 1.05rem;
+}
+
+.lobby-create {
+  margin-top: 16px;
+}
+
+.lobby-create .lobby-subtitle {
+  margin-top: 0;
+}
+
+.open-matches,
+.waiting-players {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.open-match {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #d5dde5;
+  border-radius: 10px;
+}
+
+.open-match-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.open-match-title {
+  font-weight: 600;
+}
+
+.open-match-meta {
+  color: #52606d;
+  font-size: 0.9rem;
+}
+
+.waiting-count {
+  margin: 0 0 12px;
+  font-weight: 600;
+}
+
+.waiting-player {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background-color: #f0f4f8;
+}
+
+.waiting-player-name {
+  flex: 1;
+  font-weight: 600;
+}
+
+.waiting-player-tags {
+  color: #52606d;
+  font-size: 0.85rem;
+}
+
+.waiting-player-empty {
+  justify-content: center;
+  border: 2px dashed #b8c4ce;
+  background: transparent;
+  color: #7b8794;
+}
+
+.waiting-back {
+  margin: 16px 0 0;
+}
+
+.waiting-count {
+  margin-top: 4px;
+}
+
+.waiting-back a {
+  color: #2a9d8f;
+  font-weight: 600;
+}
+
+/* ---- Jugadores simultáneos: cuenta regresiva y controles ---- */
+.arena-stage {
+  position: relative;
+}
+
+.arena-countdown {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background-color: rgba(15, 23, 42, 0.55);
+  color: #ffffff;
+}
+
+.arena-countdown-label {
+  font-size: 1.1rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.arena-countdown-number {
+  font-size: 5rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.arena-controls-hint {
+  margin: 0;
+  color: #52606d;
+}

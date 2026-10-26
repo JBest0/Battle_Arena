@@ -67,7 +67,7 @@ describe('CA-03.4: acceso al área de juego', () => {
     const { accessToken } = login.body;
 
     const blocked = await request(app)
-      .post('/api/game/join')
+      .get('/api/game/matches')
       .set('Authorization', `Bearer ${accessToken}`);
 
     expect(blocked.status).toBe(403);
@@ -80,10 +80,10 @@ describe('CA-03.4: acceso al área de juego', () => {
     expect(verify.status).toBe(200);
 
     const allowed = await request(app)
-      .post('/api/game/join')
+      .get('/api/game/matches')
       .set('Authorization', `Bearer ${accessToken}`);
 
-    expect(allowed.status).toBe(501);
-    expect(allowed.body.error.code).toBe('NOT_IMPLEMENTED');
+    expect(allowed.status).toBe(200);
+    expect(Array.isArray(allowed.body.matches)).toBe(true);
   });
 });

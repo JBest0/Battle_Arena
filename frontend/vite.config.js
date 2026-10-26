@@ -14,6 +14,7 @@ export default defineConfig({
       '/api': backend,
       '/static': backend,
       '/uploads': backend,
+      '/socket.io': { ...backend, ws: true },
     },
   },
 });
