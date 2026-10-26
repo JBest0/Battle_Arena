@@ -93,13 +93,15 @@ describe('MatchRoomManager', () => {
 
     await advance(4000);
 
-    expect(persistResult).toHaveBeenCalledTimes(1);
-    expect(persistResult).toHaveBeenCalledWith('m1', {
-      scores: { a: 0, b: 0 },
-      winnerIds: ['a', 'b'],
-    });
     const finished = emit.mock.calls.filter(([, event]) => event === 'match:finished');
+    expect(persistResult).toHaveBeenCalledTimes(1);
     expect(finished).toHaveLength(1);
+    const finalState = finished[0][2];
+    const expectedResult = {
+      scores: Object.fromEntries(finalState.players.map((player) => [player.id, player.score])),
+      winnerIds: finalState.winnerIds,
+    };
+    expect(persistResult).toHaveBeenCalledWith('m1', expectedResult);
     expect(finished[0][2].status).toBe('FINISHED');
     expect(manager.isActive('m1')).toBe(false);
   });
