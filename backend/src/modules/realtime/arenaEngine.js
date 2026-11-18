@@ -2,6 +2,9 @@
 // reparte los ítems, cuenta puntos y decide cuándo termina la partida. No conoce sockets
 // ni base de datos: recibe `dt` en cada paso, así que se prueba de forma determinista.
 
+// Largo máximo de cada paso de movimiento (unidades de arena); menor que una celda.
+const MAX_STEP = 4;
+
 const PLAYER_COLORS = ['#e63946', '#2a9d8f', '#f4a261', '#7b6cf6'];
 
 function spawnPoint(index, arena) {
@@ -28,9 +31,12 @@ class ArenaEngine {
    * @param {{playerSpeed: number, itemsOnField: number, countdownSeconds: number}} options.rules
    * @param {{id: string, username: string, avatarUrl: string}[]} options.players
    * @param {() => number} [options.random]
+   * @param {object|null} [options.scenario]  escenario compilado (ver scenario.map.js); sin él
+   *   la arena es un campo abierto
    */
-  constructor({ config, arena, rules, players, random = Math.random }) {
+  constructor({ config, arena, rules, players, random = Math.random, scenario = null }) {
     this.config = config;
+    this.scenario = scenario;
     this.arena = arena;
     this.rules = rules;
     this.random = random;
@@ -47,11 +53,44 @@ class ArenaEngine {
       username: player.username,
       avatarUrl: player.avatarUrl,
       color: PLAYER_COLORS[index % PLAYER_COLORS.length],
-      ...spawnPoint(index, arena),
+      ...this.spawnFor(index),
       score: 0,
       dx: 0,
       dy: 0,
     }));
+  }
+
+  spawnFor(index) {
+    if (this.scenario) {
+      const spawn = this.scenario.spawns[index % this.scenario.spawns.length];
+
+      return { x: spawn.x, y: spawn.y };
+    }
+
+    return spawnPoint(index, this.arena);
+  }
+
+  // ¿Un círculo en (x, y) con radio `radius` toca algún muro o el reactor del escenario?
+  collides(x, y, radius) {
+    if (!this.scenario) return false;
+
+    const { solid, cellSize, cols, rows } = this.scenario;
+    const firstCol = Math.max(0, Math.floor((x - radius) / cellSize));
+    const lastCol = Math.min(cols - 1, Math.floor((x + radius) / cellSize));
+    const firstRow = Math.max(0, Math.floor((y - radius) / cellSize));
+    const lastRow = Math.min(rows - 1, Math.floor((y + radius) / cellSize));
+
+    for (let row = firstRow; row <= lastRow; row += 1) {
+      for (let col = firstCol; col <= lastCol; col += 1) {
+        if (solid[row][col]) {
+          const nearestX = Math.min(Math.max(x, col * cellSize), (col + 1) * cellSize);
+          const nearestY = Math.min(Math.max(y, row * cellSize), (row + 1) * cellSize);
+          if (Math.hypot(x - nearestX, y - nearestY) < radius) return true;
+        }
+      }
+    }
+
+    return false;
   }
 
   get timeRemaining() {
@@ -98,14 +137,26 @@ class ArenaEngine {
     this.finishIfNeeded();
   }
 
+  // Se mueve en pasos cortos (de a lo sumo MAX_STEP unidades) y eje por eje: si un eje choca
+  // con un muro se queda quieto y el otro sigue, así el jugador se desliza por las paredes y
+  // queda pegado al muro en vez de frenar lejos de él.
   movePlayers(dt) {
     const { width, height, playerRadius } = this.arena;
+    const radius = this.arena.collisionRadius ?? playerRadius;
+    const clamp = (value, max) => Math.min(Math.max(value, playerRadius), max - playerRadius);
 
     for (const player of this.players) {
-      player.x += player.dx * this.rules.playerSpeed * dt;
-      player.y += player.dy * this.rules.playerSpeed * dt;
-      player.x = Math.min(Math.max(player.x, playerRadius), width - playerRadius);
-      player.y = Math.min(Math.max(player.y, playerRadius), height - playerRadius);
+      const distance = Math.hypot(player.dx, player.dy) * this.rules.playerSpeed * dt;
+      const steps = Math.max(1, Math.ceil(distance / MAX_STEP));
+      const stepDt = dt / steps;
+
+      for (let i = 0; i < steps; i += 1) {
+        const nextX = clamp(player.x + player.dx * this.rules.playerSpeed * stepDt, width);
+        if (!this.collides(nextX, player.y, radius)) player.x = nextX;
+
+        const nextY = clamp(player.y + player.dy * this.rules.playerSpeed * stepDt, height);
+        if (!this.collides(player.x, nextY, radius)) player.y = nextY;
+      }
     }
   }
 
@@ -133,17 +184,35 @@ class ArenaEngine {
     });
   }
 
+  // Los ítems aparecen en las celdas "C" del escenario (o en un punto libre al azar si
+  // el escenario no tiene), sin repetir una posición ocupada.
   refillItems() {
-    const margin = this.arena.playerRadius + 12;
-
     while (this.items.length < this.rules.itemsOnField) {
-      this.items.push({
-        id: `item-${this.nextItemId}`,
-        x: margin + this.random() * (this.arena.width - margin * 2),
-        y: margin + this.random() * (this.arena.height - margin * 2),
-      });
+      const spot = this.pickItemSpot();
+      this.items.push({ id: `item-${this.nextItemId}`, x: spot.x, y: spot.y });
       this.nextItemId += 1;
     }
+  }
+
+  pickItemSpot() {
+    const free = (this.scenario?.cells || []).filter(
+      (cell) => !this.items.some((item) => item.x === cell.x && item.y === cell.y)
+    );
+    if (free.length > 0) {
+      return free[Math.floor(this.random() * free.length)];
+    }
+
+    const margin = this.arena.playerRadius + 12;
+    let spot = null;
+    for (let attempt = 0; attempt < 30 && !spot; attempt += 1) {
+      const candidate = {
+        x: margin + this.random() * (this.arena.width - margin * 2),
+        y: margin + this.random() * (this.arena.height - margin * 2),
+      };
+      if (!this.collides(candidate.x, candidate.y, this.arena.itemRadius)) spot = candidate;
+    }
+
+    return spot || { x: this.arena.width / 2, y: margin };
   }
 
   finishIfNeeded() {

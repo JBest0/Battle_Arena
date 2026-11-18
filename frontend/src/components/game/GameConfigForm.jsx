@@ -5,6 +5,7 @@ import {
   toConfigPayload,
   validateGameConfig,
 } from '../../game/gameConfig';
+import ScenarioPreview from './ScenarioPreview';
 
 const MODE_DESCRIPTIONS = {
   TIME: 'Gana quien tenga más puntos cuando se acabe el reloj.',
@@ -47,6 +48,8 @@ function NumberField({ id, label, hint, value, error, onChange, limits }) {
  */
 export default function GameConfigForm({
   options,
+  scenarios = [],
+  initialScenarioId = null,
   submitting = false,
   serverErrors = {},
   onSubmit,
@@ -57,6 +60,10 @@ export default function GameConfigForm({
     durationSeconds: String(defaults.durationSeconds),
     targetPoints: String(defaults.targetPoints),
     maxPlayers: String(defaults.maxPlayers),
+    // el último que se usó, si sigue en el catálogo; si no, el primero
+    scenarioId: scenarios.some((scenario) => scenario.id === initialScenarioId)
+      ? initialScenarioId
+      : scenarios[0]?.id || '',
   });
   const [localErrors, setLocalErrors] = useState({});
 
@@ -83,6 +90,7 @@ export default function GameConfigForm({
     onSubmit(toConfigPayload(values));
   }
 
+  const selectedScenario = scenarios.find((scenario) => scenario.id === values.scenarioId) || null;
   const isValid = Object.keys(validateGameConfig(values, limits)).length === 0;
   const preview = isValid ? describeConfig(toConfigPayload(values)) : null;
 
@@ -148,6 +156,38 @@ export default function GameConfigForm({
         onChange={handleNumberChange}
         limits={limits.maxPlayers}
       />
+
+      {scenarios.length > 0 && (
+        <div className="field">
+          <label htmlFor="scenarioId">Escenario</label>
+          <select
+            id="scenarioId"
+            name="scenarioId"
+            value={values.scenarioId}
+            onChange={(event) => setValue('scenarioId', event.target.value)}
+          >
+            <option value="random">Aleatorio</option>
+            {scenarios.map((scenario) => (
+              <option key={scenario.id} value={scenario.id}>
+                {scenario.name}
+              </option>
+            ))}
+          </select>
+          <div className="scenario-picker">
+            <ScenarioPreview scenario={selectedScenario} arena={options.arena} width={200} />
+            <p className="game-config-hint">
+              {selectedScenario
+                ? selectedScenario.description
+                : 'Se elige un escenario al azar al crear la partida.'}
+            </p>
+          </div>
+          {errors.scenarioId && (
+            <p className="field-error" role="alert">
+              {errors.scenarioId}
+            </p>
+          )}
+        </div>
+      )}
 
       {preview && <p className="game-config-preview">{preview}</p>}
 

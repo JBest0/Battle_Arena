@@ -16,6 +16,8 @@ const envSchema = z.object({
   SMTP_PASS: z.string().default(''),
   MAIL_FROM: z.string().min(1, 'MAIL_FROM es obligatorio'),
   UPLOADS_DIR: z.string().min(1, 'UPLOADS_DIR es obligatorio'),
+  // Carpeta con los archivos .json de escenarios (por defecto, src/scenarios).
+  SCENARIOS_DIR: z.string().default(path.resolve(__dirname, 'scenarios')),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -43,5 +45,6 @@ module.exports = {
   smtpPass: env.SMTP_PASS,
   mailFrom: env.MAIL_FROM,
   uploadsDir: env.UPLOADS_DIR,
+  scenariosDir: env.SCENARIOS_DIR,
   nodeEnv: process.env.NODE_ENV || 'development',
 };

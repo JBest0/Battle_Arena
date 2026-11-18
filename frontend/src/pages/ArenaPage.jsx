@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import {
   getErrorMessage,
   getGameOptions,
+  getScenario,
   joinMatch,
   startMatch,
 } from '../api/game';
@@ -19,7 +20,7 @@ function errorText(err) {
   return err.response ? getErrorMessage(err) : 'No se pudo conectar con el servidor';
 }
 
-function ArenaScreen({ match, arena, currentUserId }) {
+function ArenaScreen({ match, arena, scenario, currentUserId }) {
   const { stateRef, hud, connection, error, sendInput } = useArenaSocket(match.id);
   const status = hud?.status;
 
@@ -30,7 +31,10 @@ function ArenaScreen({ match, arena, currentUserId }) {
       <div className="arena-toolbar">
         <div>
           <h2>Arena</h2>
-          <p className="arena-config-summary">{describeConfig(match.config)}</p>
+          <p className="arena-config-summary">
+            {scenario ? `${scenario.name} · ` : ''}
+            {describeConfig(match.config)}
+          </p>
         </div>
         <div className="arena-toolbar-actions">
           <Link className="button button-small" to="/lobby">
@@ -60,7 +64,7 @@ function ArenaScreen({ match, arena, currentUserId }) {
 
       <div className="arena-layout">
         <div className="arena-stage">
-          <ArenaCanvas stateRef={stateRef} arena={arena} />
+          <ArenaCanvas stateRef={stateRef} arena={arena} scenario={scenario} />
           {status === 'COUNTDOWN' && (
             <div className="arena-countdown" role="status" aria-live="polite">
               <span className="arena-countdown-label">Prepárate</span>
@@ -109,6 +113,8 @@ export default function ArenaPage() {
   const { match, error, loading, setMatch } = useMatch(matchId);
   const [options, setOptions] = useState(null);
   const [optionsError, setOptionsError] = useState('');
+  const [scenario, setScenario] = useState(null);
+  const [scenarioError, setScenarioError] = useState('');
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState('');
 
@@ -127,6 +133,28 @@ export default function ArenaPage() {
       active = false;
     };
   }, []);
+
+  const scenarioId = match?.scenarioId ?? null;
+
+  useEffect(() => {
+    setScenario(null);
+    setScenarioError('');
+    if (!scenarioId) return undefined;
+
+    let active = true;
+
+    getScenario(scenarioId)
+      .then(({ scenario: data }) => {
+        if (active) setScenario(data);
+      })
+      .catch((err) => {
+        if (active) setScenarioError(errorText(err));
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [scenarioId]);
 
   async function runAction(action) {
     setBusy(true);
@@ -150,11 +178,16 @@ export default function ArenaPage() {
     );
   }
 
-  if (error || optionsError) {
-    return <Message error={error || optionsError} linkLabel="Volver a la sala de juego" />;
+  if (error || optionsError || scenarioError) {
+    return (
+      <Message
+        error={error || optionsError || scenarioError}
+        linkLabel="Volver a la sala de juego"
+      />
+    );
   }
 
-  if (loading || !match || !options) {
+  if (loading || !match || !options || (scenarioId && !scenario)) {
     return <Message>Cargando partida…</Message>;
   }
 
@@ -162,6 +195,8 @@ export default function ArenaPage() {
     return (
       <WaitingRoom
         match={match}
+        scenario={scenario}
+        arena={options.arena}
         currentUserId={user?.id}
         minPlayers={options.minPlayersToStart}
         busy={busy}
@@ -192,6 +227,7 @@ export default function ArenaPage() {
     <ArenaScreen
       match={match}
       arena={options.arena}
+      scenario={scenario}
       currentUserId={user?.id}
     />
   );

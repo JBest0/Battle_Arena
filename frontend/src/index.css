@@ -1018,3 +1018,50 @@ body {
   margin: 0;
   color: #52606d;
 }
+
+/* ---- Escenarios ---- */
+.field select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #b8c4ce;
+  border-radius: 8px;
+  background-color: #ffffff;
+  font: inherit;
+}
+
+.scenario-picker {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.scenario-picker .game-config-hint {
+  margin: 0;
+}
+
+.scenario-preview {
+  display: block;
+  max-width: 100%;
+  flex: none;
+  border-radius: 8px;
+  box-shadow: 0 1px 6px rgba(15, 23, 42, 0.2);
+}
+
+.waiting-scenario {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.waiting-scenario p {
+  margin: 0;
+}
+
+@media (max-width: 520px) {
+  .scenario-picker,
+  .waiting-scenario {
+    flex-direction: column;
+  }
+}

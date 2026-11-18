@@ -40,7 +40,15 @@ const ARENA = {
   height: 500,
   playerRadius: 24,
   itemRadius: 10,
+  // Los escenarios son una cuadrícula de cellSize × cellSize (32 × 20 celdas).
+  cellSize: 25,
+  // Radio con el que el jugador choca contra los muros (más chico que el dibujado,
+  // para que quepa por pasillos de 2 celdas sin trabarse).
+  collisionRadius: 16,
 };
+
+// Valor de scenarioId para pedir un escenario al azar al crear la partida.
+const SCENARIO_RANDOM = 'random';
 
 /**
  * Completa los valores faltantes con los de por defecto y deja en `null` el campo que
@@ -60,6 +68,8 @@ function normalizeConfig(input = {}) {
         ? input.targetPoints ?? DEFAULT_GAME_CONFIG.targetPoints
         : null,
     maxPlayers: input.maxPlayers ?? DEFAULT_GAME_CONFIG.maxPlayers,
+    // Escenario pedido (id del catálogo o "random"); lo resuelve GameService.
+    scenarioId: input.scenarioId,
   };
 }
 
@@ -72,5 +82,6 @@ module.exports = {
   DEFAULT_GAME_CONFIG,
   GAMEPLAY,
   ARENA,
+  SCENARIO_RANDOM,
   normalizeConfig,
 };

@@ -5,7 +5,12 @@ const { createRealtime } = require('./realtime.socket');
 // Conecta el tiempo real con el resto del backend. Lo llama server.js.
 function startRealtime(server) {
   // Se cargan aquí para que las pruebas de createRealtime no necesiten la base de datos.
-  const { gameService, gameEvents, statsService } = require('../../container');
+  const {
+    gameService,
+    gameEvents,
+    statsService,
+    scenarioCatalog,
+  } = require('../../container');
   const { verifySocketToken } = require('../../shared/middleware/requireAuth');
   const {
     assertSocketUserVerified,
@@ -21,6 +26,7 @@ function startRealtime(server) {
     managerOptions: {
       arena: ARENA,
       rules: GAMEPLAY,
+      getScenario: (id) => scenarioCatalog.getCompiled(id),
       // Guarda puntajes y fecha de fin, y luego estadísticas, ranking y logros (US-16).
       persistResult: async (matchId, result) => {
         await gameService.finishMatch(matchId, result);

@@ -164,6 +164,7 @@ describe('GameService (repositorio simulado)', () => {
         durationSeconds: 180,
         targetPoints: null,
         maxPlayers: 2,
+        scenarioId: null,
       },
       'u1'
     );
@@ -176,6 +177,7 @@ describe('GameService (repositorio simulado)', () => {
         targetPoints: null,
         maxPlayers: 2,
       },
+      scenarioId: null,
       createdById: 'u1',
       startedAt: null,
       endedAt: null,

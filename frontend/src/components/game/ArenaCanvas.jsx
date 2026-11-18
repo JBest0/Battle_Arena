@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { drawScenarioLayer, scenarioPalette } from '../../game/scenarioRender';
 
 const TAU = Math.PI * 2;
 const COLORS = {
@@ -58,8 +59,8 @@ function drawFloor(ctx, arena) {
   ctx.strokeRect(3, 3, arena.width - 6, arena.height - 6);
 }
 
-function drawItems(ctx, items, radius) {
-  ctx.fillStyle = COLORS.item;
+function drawItems(ctx, items, radius, color = COLORS.item) {
+  ctx.fillStyle = color;
   ctx.strokeStyle = COLORS.itemEdge;
   ctx.lineWidth = 2;
 
@@ -116,12 +117,19 @@ function drawPlayer(ctx, player, radius) {
   ctx.fillText(label, x, labelY);
 }
 
-function draw(ctx, canvas, state, arena) {
+function draw(ctx, canvas, state, arena, layer, scenario) {
   const scale = canvas.width / arena.width;
 
-  ctx.setTransform(scale, 0, 0, scale, 0, 0);
-  drawFloor(ctx, arena);
-  drawItems(ctx, state.items, arena.itemRadius);
+  if (layer) {
+    // capa fija del escenario (piso, muros, reactor), dibujada una sola vez por tamaño
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(layer, 0, 0);
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  } else {
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    drawFloor(ctx, arena);
+  }
+  drawItems(ctx, state.items, arena.itemRadius, scenarioPalette(scenario).cell);
   for (const player of state.players) {
     drawPlayer(ctx, player, arena.playerRadius);
   }
@@ -132,18 +140,36 @@ function draw(ctx, canvas, state, arena) {
  * `arena`. Lee el estado en cada frame, así que las actualizaciones por socket no
  * re-renderizan React.
  */
-export default function ArenaCanvas({ stateRef, arena }) {
+export default function ArenaCanvas({ stateRef, arena, scenario = null }) {
   const canvasRef = useRef(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
 
+    let layer = null;
+
+    function rebuildLayer() {
+      if (!scenario) {
+        layer = null;
+        return;
+      }
+
+      layer = document.createElement('canvas');
+      layer.width = canvas.width;
+      layer.height = canvas.height;
+      const layerCtx = layer.getContext('2d');
+      const scale = canvas.width / arena.width;
+      layerCtx.setTransform(scale, 0, 0, scale, 0, 0);
+      drawScenarioLayer(layerCtx, scenario, arena);
+    }
+
     function resize() {
       const ratio = window.devicePixelRatio || 1;
       const cssWidth = canvas.getBoundingClientRect().width;
       canvas.width = Math.max(1, Math.round(cssWidth * ratio));
       canvas.height = Math.round((canvas.width * arena.height) / arena.width);
+      rebuildLayer();
     }
 
     resize();
@@ -154,7 +180,7 @@ export default function ArenaCanvas({ stateRef, arena }) {
     function render() {
       const state = stateRef.current;
       if (state) {
-        draw(ctx, canvas, state, arena);
+        draw(ctx, canvas, state, arena, layer, scenario);
       }
       frame = requestAnimationFrame(render);
     }
@@ -164,7 +190,7 @@ export default function ArenaCanvas({ stateRef, arena }) {
       cancelAnimationFrame(frame);
       observer.disconnect();
     };
-  }, [stateRef, arena]);
+  }, [stateRef, arena, scenario]);
 
   return (
     <canvas

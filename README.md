@@ -690,7 +690,7 @@ Todos exigen sesión y correo verificado (`requireAuth` + `requireVerifiedEmail`
 | --- | --- | --- |
 | GET | `/options` | `200 { endModes, limits, defaults, arena, minPlayersToStart }` |
 | GET | `/matches` | `200 { matches }`: partidas en espera de los últimos 30 minutos (máx. 20) |
-| POST | `/matches` | `201 { match }`; `400 VALIDATION_ERROR` con `fields` por campo |
+| POST | `/matches` | `201 { match }` (acepta `scenarioId`); `400 VALIDATION_ERROR` con `fields` por campo o `SCENARIO_NOT_FOUND` |
 | GET | `/matches/:id` | `200 { match }`; `404 MATCH_NOT_FOUND` |
 | POST | `/matches/:id/join` | `200 { match }`; idempotente. `409 MATCH_FULL` o `MATCH_ALREADY_STARTED` |
 | POST | `/matches/:id/start` | `200 { match }`. `403 NOT_MATCH_CREATOR`, `409 NOT_ENOUGH_PLAYERS` o `MATCH_ALREADY_STARTED` |
@@ -761,6 +761,56 @@ Ambas siguen dentro de `<VerifiedRoute>` (CA-03.4).
   `MATCH_NOT_ACTIVE`).
 - No hay "salir de la sala de espera" ni expulsar jugadores.
 - El control físico ESP32 (módulo de hardware) está pendiente.
+
+## Escenarios
+
+Cada escenario es un archivo `.json` en `backend/src/scenarios/` (o en la carpeta de la
+variable `SCENARIOS_DIR`). El servidor los lee al arrancar: para agregar uno basta copiar el
+archivo y reiniciar, sin tocar el código. Un archivo inválido se rechaza y se registra el
+error en la consola sin afectar a los demás (también se rechaza un `id` repetido). Todos los
+escenarios comparten las mismas reglas; cambian el mapa, la paleta y la música.
+
+Incluidos: laboratorio subterráneo, estación espacial, planta industrial y complejo militar
+futurista. Los cuatro son simétricos, así que ningún jugador empieza con ventaja.
+
+```json
+{
+  "id": "estacion-espacial",
+  "name": "Estación espacial",
+  "description": "Anillo de compuertas alrededor del reactor.",
+  "order": 2,
+  "palette": { "floor": "#0e0b2a", "grid": "#1c1650", "wall": "#5b4bd6", "wallTop": "#9d8cff",
+               "reactor": "#00e5ff", "terminal": "#ff5de0", "cell": "#ffe45e" },
+  "music": { "track": "sintetizador-orbital", "src": null, "volume": 0.4 },
+  "map": ["################################", "…20 filas de 32 caracteres…"]
+}
+```
+
+| Carácter del mapa | Significado |
+| --- | --- |
+| `#` | Muro (el borde del mapa debe ser todo de muros) |
+| `.` | Piso |
+| `R` | Reactor: un solo bloque rectangular de al menos 2 × 2; es sólido |
+| `1` `2` `3` `4` | Inicio de cada jugador (los cuatro, una vez cada uno) |
+| `T` | Terminal energética |
+| `C` | Posición donde aparece una celda de energía |
+
+- El mapa es una cuadrícula de 32 × 20 celdas de 25 × 25 unidades (la arena de 800 × 500).
+- La paleta exige `floor`, `grid`, `wall`, `wallTop`, `reactor`, `terminal` y `cell` en
+  formato `#RRGGBB`; se pueden agregar más colores.
+- `music.src` es `null` mientras no haya un archivo de audio con licencia documentada.
+- Al cargarlo se comprueba que sea jugable: los cuatro inicios, las terminales y las celdas
+  deben conectarse entre sí y con el reactor por pasillos de al menos 2 celdas de ancho (el
+  jugador choca con un radio de 16, así que por 1 celda no cabe).
+- El motor usa el mapa para chocar contra muros y reactor, sacar a cada jugador de su inicio y
+  poner los ítems en las celdas `C`. Sin escenario (partidas antiguas) la arena es un campo
+  abierto.
+
+Endpoints (sesión y correo verificado): `GET /api/game/scenarios` devuelve el catálogo con el
+mapa de cada uno; `GET /api/game/scenarios/:id` devuelve uno (`404 SCENARIO_NOT_FOUND`). Al
+crear una partida, `scenarioId` es un id del catálogo o `"random"`; si falta se usa el primero
+(el de menor `order`) y siempre se guarda un id concreto en `matches.scenario_id`. En la sala
+de juego el formulario recuerda el último escenario elegido.
 
 ## Base de datos
 

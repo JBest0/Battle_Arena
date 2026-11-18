@@ -20,6 +20,7 @@ class GameRepository {
         durationSeconds: config.durationSeconds,
         targetPoints: config.targetPoints,
         maxPlayers: config.maxPlayers,
+        scenarioId: config.scenarioId ?? null,
         createdById: creatorId,
         participants: { create: { userId: creatorId } },
       },

@@ -141,6 +141,7 @@ model Match {
   targetPoints    Int?      @map("target_points")
   createdById     String?   @map("created_by_id") @db.Uuid
   createdAt       DateTime  @default(now()) @map("created_at")
+  scenarioId      String?   @map("scenario_id") @db.VarChar(50)
 
   winner       User?              @relation("MatchWinner", fields: [winnerId], references: [id], onDelete: SetNull)
   createdBy    User?              @relation("MatchCreator", fields: [createdById], references: [id], onDelete: SetNull)

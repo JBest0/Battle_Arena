@@ -1,10 +1,13 @@
 import { Link } from 'react-router-dom';
 import AvatarImage from '../AvatarImage';
 import { describeConfig } from '../../game/gameConfig';
+import ScenarioPreview from './ScenarioPreview';
 
 // Sala de espera de una partida: jugadores, cupo y, para el anfitrión, el botón de inicio.
 export default function WaitingRoom({
   match,
+  scenario = null,
+  arena = null,
   currentUserId,
   minPlayers,
   busy,
@@ -23,6 +26,16 @@ export default function WaitingRoom({
     <section className="card game-config-card">
       <h2>Sala de espera</h2>
       <p className="arena-config-summary">{describeConfig(config)}</p>
+      {scenario && arena && (
+        <div className="waiting-scenario">
+          <ScenarioPreview scenario={scenario} arena={arena} width={200} />
+          <p>
+            <strong>{scenario.name}</strong>
+            <br />
+            <span className="game-config-hint">{scenario.description}</span>
+          </p>
+        </div>
+      )}
       <p className="waiting-count">
         {players.length} de {config.maxPlayers} jugadores
       </p>
