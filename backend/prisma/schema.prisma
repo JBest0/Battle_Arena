@@ -156,6 +156,8 @@ model MatchParticipant {
   finalScore Int          @default(0) @map("final_score")
   position   Int?
   result     MatchResult?
+  isPersonalBest Boolean @default(false) @map("is_personal_best")
+  isGlobalRecord  Boolean @default(false) @map("is_global_record")
 
   match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)

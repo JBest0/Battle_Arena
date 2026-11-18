@@ -19,6 +19,9 @@ const { StatsController } = require('./modules/stats/stats.controller');
 const { GameRepository } = require('./modules/game/game.repository');
 const { GameService } = require('./modules/game/game.service');
 const { GameController } = require('./modules/game/game.controller');
+const { MatchesRepository } = require('./modules/matches/matches.repository');
+const { MatchesService } = require('./modules/matches/matches.service');
+const { MatchesController } = require('./modules/matches/matches.controller');
 const {
   AchievementEvaluator,
 } = require('./modules/stats/achievements/AchievementEvaluator');
@@ -30,6 +33,7 @@ const tokenRepository = new TokenRepository();
 const statsRepository = new StatsRepository();
 const matchRepository = new MatchRepository();
 const gameRepository = new GameRepository();
+const matchesRepository = new MatchesRepository();
 const achievementEvaluator = new AchievementEvaluator(rules);
 const emailService = new EmailService(config);
 const fileStorage = new FileStorage(config);
@@ -65,11 +69,13 @@ const gameService = new GameService({
   unitOfWork,
   gameEvents,
 });
+const matchesService = new MatchesService({ matchesRepository });
 
 const authController = new AuthController({ authService });
 const usersController = new UsersController({ usersService, avatarService });
 const statsController = new StatsController({ statsService });
 const gameController = new GameController({ gameService });
+const matchesController = new MatchesController({ matchesService });
 
 module.exports = {
   config,
@@ -94,4 +100,7 @@ module.exports = {
   usersController,
   statsController,
   gameController,
+  matchesRepository,
+  matchesService,
+  matchesController,
 };

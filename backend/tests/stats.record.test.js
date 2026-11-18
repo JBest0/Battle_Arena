@@ -99,6 +99,63 @@ afterAll(async () => {
 });
 
 describe('StatsService.recordMatchResult', () => {
+  it('persiste récord personal y global sin recalcularlos al repetir', async () => {
+    const a = await createPlayer('records_a');
+    const b = await createPlayer('records_b');
+
+    const first = await createMatch({
+      playerA: a,
+      playerB: b,
+      scoreA: 80,
+      scoreB: 40,
+    });
+    await statsService.recordMatchResult(first.id);
+
+    let participants = await prisma.matchParticipant.findMany({
+      where: { matchId: first.id },
+    });
+    expect(participants.find((participant) => participant.userId === a.id)).toEqual(
+      expect.objectContaining({ isPersonalBest: true, isGlobalRecord: true })
+    );
+
+    const second = await createMatch({
+      playerA: a,
+      playerB: b,
+      scoreA: 80,
+      scoreB: 40,
+    });
+    await statsService.recordMatchResult(second.id);
+
+    participants = await prisma.matchParticipant.findMany({
+      where: { matchId: second.id },
+    });
+    expect(participants.find((participant) => participant.userId === a.id)).toEqual(
+      expect.objectContaining({ isPersonalBest: false, isGlobalRecord: false })
+    );
+
+    const third = await createMatch({
+      playerA: a,
+      playerB: b,
+      scoreA: 100,
+      scoreB: 20,
+    });
+    await statsService.recordMatchResult(third.id);
+    participants = await prisma.matchParticipant.findMany({
+      where: { matchId: third.id },
+    });
+    expect(participants.find((participant) => participant.userId === a.id)).toEqual(
+      expect.objectContaining({ isPersonalBest: true, isGlobalRecord: true })
+    );
+
+    await statsService.recordMatchResult(third.id);
+    const repeated = await prisma.matchParticipant.findMany({
+      where: { matchId: third.id },
+    });
+    expect(repeated.find((participant) => participant.userId === a.id)).toEqual(
+      expect.objectContaining({ isPersonalBest: true, isGlobalRecord: true })
+    );
+  });
+
   it('registra victoria y derrota con puntos y posiciones', async () => {
     const a = await createPlayer('jugador_a');
     const b = await createPlayer('jugador_b');

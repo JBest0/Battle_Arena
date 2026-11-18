@@ -11,6 +11,14 @@ class StatsRepository {
     return tx.playerStats.findUnique({ where: { userId } });
   }
 
+  async getGlobalBestScore(tx = this.db) {
+    const result = await tx.playerStats.aggregate({
+      _max: { bestScore: true },
+    });
+
+    return result._max.bestScore ?? 0;
+  }
+
   async ensureStats(userId, tx = this.db) {
     return tx.playerStats.upsert({
       where: { userId },

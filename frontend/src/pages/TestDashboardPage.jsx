@@ -17,6 +17,7 @@ import {
   getRankingPage,
   updateMyProfile,
 } from '../api/profile';
+import { getMatchResult } from '../api/matches';
 import { useAuth } from '../auth/AuthContext';
 
 const INITIAL_MATCH = {
@@ -367,6 +368,12 @@ export default function TestDashboardPage() {
               onClick={() => runAction(() => startMatch(matchId))}
             >
               Iniciar partida
+            </ActionButton>
+            <ActionButton
+              disabled={!authenticated || busy || !matchId}
+              onClick={() => runAction(() => getMatchResult(matchId))}
+            >
+              Consultar podio/resultados
             </ActionButton>
           </div>
         </section>

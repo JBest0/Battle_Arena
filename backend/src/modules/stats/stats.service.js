@@ -61,6 +61,7 @@ class StatsService {
    */
   async recordMatchResult(matchId) {
     return this.unitOfWork.run(async (tx) => {
+      await this.matchRepository.lockMatch(matchId, tx);
       const match = await this.matchRepository.findFinishedWithParticipants(
         matchId,
         tx
@@ -83,6 +84,17 @@ class StatsService {
       }
 
       const results = this.computeResults(match.participants);
+      const globalBestScore = await this.statsRepository.getGlobalBestScore(tx);
+
+      for (const result of results) {
+        const previousStats = await this.statsRepository.getStats(
+          result.userId,
+          tx
+        );
+        const previousBest = previousStats?.bestScore ?? 0;
+        result.isPersonalBest = result.finalScore > previousBest;
+        result.isGlobalRecord = result.finalScore > globalBestScore;
+      }
 
       await this.matchRepository.setParticipantResults(tx, matchId, results);
 
