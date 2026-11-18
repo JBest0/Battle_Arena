@@ -38,12 +38,15 @@ const GAMEPLAY = {
 const ARENA = {
   width: 800,
   height: 500,
-  playerRadius: 24,
+  // Radio con el que se dibuja el personaje (el anillo de color suma 4 más). Con 16, el
+  // personaje dibujado mide 40 y cabe con holgura en un pasillo de 2 celdas (50).
+  playerRadius: 16,
   itemRadius: 10,
   // Los escenarios son una cuadrícula de cellSize × cellSize (32 × 20 celdas).
   cellSize: 25,
-  // Radio con el que el jugador choca contra los muros (más chico que el dibujado,
-  // para que quepa por pasillos de 2 celdas sin trabarse).
+  // Radio con el que el jugador choca contra los muros. Debe cumplir dos cosas a la vez:
+  // medir más de media celda (así un hueco de 1 celda no deja pasar, y las puertas de 2
+  // celdas bloquean) y caber con holgura en un pasillo de 2 celdas sin trabarse.
   collisionRadius: 16,
 };
 

@@ -122,6 +122,26 @@ describe('matchIdParamsSchema', () => {
   });
 });
 
+describe('tamaño del personaje en la arena', () => {
+  const { ARENA } = require('../src/modules/game/game.config');
+  const RING = 4; // anillo de color que dibuja el cliente alrededor del avatar
+
+  it('el personaje dibujado cabe en un pasillo de 2 celdas', () => {
+    expect(2 * (ARENA.playerRadius + RING)).toBeLessThan(2 * ARENA.cellSize);
+  });
+
+  it('el choque deja pasar por 2 celdas y no por 1 (las puertas de 2 celdas bloquean)', () => {
+    expect(2 * ARENA.collisionRadius).toBeLessThan(2 * ARENA.cellSize);
+    expect(2 * ARENA.collisionRadius).toBeGreaterThan(ARENA.cellSize);
+  });
+
+  it('el personaje alcanza cualquier celda de energía desde el centro de un bloque de 2 × 2', () => {
+    const halfDiagonal = Math.hypot(ARENA.cellSize / 2, ARENA.cellSize / 2);
+
+    expect(ARENA.playerRadius + ARENA.itemRadius).toBeGreaterThan(halfDiagonal);
+  });
+});
+
 describe('GameService (repositorio simulado)', () => {
   const participant = {
     userId: 'u1',
