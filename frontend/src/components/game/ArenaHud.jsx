@@ -1,4 +1,5 @@
 import AvatarImage from '../AvatarImage';
+import ActiveEvents from './ActiveEvents';
 import { END_MODE_LABELS } from '../../game/gameConfig';
 import { formatDuration } from '../../utils/dates';
 
@@ -11,8 +12,14 @@ function resultText(hud) {
   return `Empate entre ${winners.map((player) => player.username).join(', ')}`;
 }
 
-// Panel lateral de la arena: modo, reloj/objetivo, marcador y resultado.
-export default function ArenaHud({ config, hud, currentUserId }) {
+// Panel lateral de la arena: modo, reloj/objetivo, evento activo, marcador y resultado.
+export default function ArenaHud({
+  config,
+  hud,
+  currentUserId,
+  soundEnabled = true,
+  onToggleSound = null,
+}) {
   const ranked = [...hud.players].sort((a, b) => b.score - a.score);
   const finished = hud.status === 'FINISHED';
   const isTime = config.endMode === 'TIME';
@@ -40,6 +47,8 @@ export default function ArenaHud({ config, hud, currentUserId }) {
         </p>
       )}
 
+      <ActiveEvents events={hud.events} />
+
       <ol className="arena-scoreboard">
         {ranked.map((player) => (
           <li key={player.id} className="arena-score-row">
@@ -61,6 +70,17 @@ export default function ArenaHud({ config, hud, currentUserId }) {
           </li>
         ))}
       </ol>
+
+      {onToggleSound && (
+        <button
+          type="button"
+          className="button button-small arena-sound-toggle"
+          aria-pressed={soundEnabled}
+          onClick={onToggleSound}
+        >
+          {soundEnabled ? 'Sonido activado' : 'Sonido silenciado'}
+        </button>
+      )}
     </aside>
   );
 }

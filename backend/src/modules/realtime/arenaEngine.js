@@ -2,6 +2,8 @@
 // reparte los ítems, cuenta puntos y decide cuándo termina la partida. No conoce sockets
 // ni base de datos: recibe `dt` en cada paso, así que se prueba de forma determinista.
 
+const { EventScheduler } = require('../events/eventScheduler');
+
 // Largo máximo de cada paso de movimiento (unidades de arena); menor que una celda.
 const MAX_STEP = 4;
 
@@ -33,10 +35,26 @@ class ArenaEngine {
    * @param {() => number} [options.random]
    * @param {object|null} [options.scenario]  escenario compilado (ver scenario.map.js); sin él
    *   la arena es un campo abierto
+   * @param {object|null} [options.eventFactory]  fábrica de eventos especiales (ver
+   *   modules/events); sin ella no ocurren eventos. Usa rules.eventIntervalSeconds y
+   *   rules.eventDurationSeconds.
    */
-  constructor({ config, arena, rules, players, random = Math.random, scenario = null }) {
+  constructor({
+    config,
+    arena,
+    rules,
+    players,
+    random = Math.random,
+    scenario = null,
+    eventFactory = null,
+  }) {
     this.config = config;
     this.scenario = scenario;
+    // Copia propia de los muros: el escenario compilado se comparte entre partidas y los
+    // eventos (ruta alternativa) abren y cierran muros solo en esta.
+    this.solid = scenario ? scenario.solid.map((row) => [...row]) : null;
+    this.openedWalls = new Set();
+    this.closingWalls = new Set();
     this.arena = arena;
     this.rules = rules;
     this.random = random;
@@ -47,6 +65,14 @@ class ArenaEngine {
     this.items = [];
     this.winnerIds = [];
     this.nextItemId = 1;
+    this.events = eventFactory
+      ? new EventScheduler({
+          factory: eventFactory,
+          intervalSeconds: rules.eventIntervalSeconds,
+          durationSeconds: rules.eventDurationSeconds,
+          random,
+        })
+      : null;
 
     this.players = players.map((player, index) => ({
       id: player.id,
@@ -74,7 +100,8 @@ class ArenaEngine {
   collides(x, y, radius) {
     if (!this.scenario) return false;
 
-    const { solid, cellSize, cols, rows } = this.scenario;
+    const { cellSize, cols, rows } = this.scenario;
+    const { solid } = this;
     const firstCol = Math.max(0, Math.floor((x - radius) / cellSize));
     const lastCol = Math.min(cols - 1, Math.floor((x + radius) / cellSize));
     const firstRow = Math.max(0, Math.floor((y - radius) / cellSize));
@@ -131,9 +158,11 @@ class ArenaEngine {
     }
 
     this.elapsed += dt;
+    this.events?.update(dt, this);
     this.movePlayers(dt);
     this.collectItems();
     this.refillItems();
+    this.closePendingWalls();
     this.finishIfNeeded();
   }
 
@@ -163,6 +192,8 @@ class ArenaEngine {
   // Cada ítem es del jugador más cercano que lo toque; si hay empate, del primero en la lista.
   collectItems() {
     const reach = this.arena.playerRadius + this.arena.itemRadius;
+    // Cada celda vale 1 punto, multiplicado por los eventos activos (sobrecarga: x2).
+    const points = this.events ? this.events.modifiers().pointMultiplier : 1;
 
     this.items = this.items.filter((item) => {
       let closest = null;
@@ -177,7 +208,7 @@ class ArenaEngine {
       }
 
       if (closest) {
-        closest.score += 1;
+        closest.score += points;
         return false;
       }
       return true;
@@ -187,10 +218,80 @@ class ArenaEngine {
   // Los ítems aparecen en las celdas "C" del escenario (o en un punto libre al azar si
   // el escenario no tiene), sin repetir una posición ocupada.
   refillItems() {
-    while (this.items.length < this.rules.itemsOnField) {
+    // Las celdas extra de los eventos no cuentan: las normales se reponen igual.
+    while (this.items.filter((item) => !item.bonus).length < this.rules.itemsOnField) {
       const spot = this.pickItemSpot();
       this.items.push({ id: `item-${this.nextItemId}`, x: spot.x, y: spot.y });
       this.nextItemId += 1;
+    }
+  }
+
+  // Celda extra (la usan los eventos, p. ej. la lluvia de energía). Se marca como `bonus`
+  // para poder retirarla cuando el evento termina.
+  spawnBonusItem() {
+    const spot = this.pickItemSpot();
+    this.items.push({ id: `item-${this.nextItemId}`, x: spot.x, y: spot.y, bonus: true });
+    this.nextItemId += 1;
+  }
+
+  removeBonusItems() {
+    this.items = this.items.filter((item) => !item.bonus);
+  }
+
+  // --- Muros dinámicos (los usan los eventos; las barreras y paredes de US-20 y US-26
+  // pueden reutilizarlos) ---
+
+  // Datos de la cuadrícula para decidir qué muros se pueden abrir.
+  wallGrid() {
+    const { cols, rows, reactor } = this.scenario;
+
+    return { solid: this.solid, cols, rows, reactor };
+  }
+
+  openWall(col, row) {
+    if (!this.solid?.[row]?.[col]) return;
+
+    this.solid[row][col] = false;
+    this.openedWalls.add(`${col},${row}`);
+    this.closingWalls.delete(`${col},${row}`);
+  }
+
+  // Pide cerrar esos muros: cada uno se cierra apenas no haya ningún jugador tocándolo,
+  // para no dejar a nadie atrapado dentro de un muro.
+  requestWallClose(cells) {
+    cells.forEach(({ col, row }) => {
+      if (this.openedWalls.has(`${col},${row}`)) this.closingWalls.add(`${col},${row}`);
+    });
+  }
+
+  wallBlockedByPlayer(col, row) {
+    const size = this.scenario.cellSize;
+    const radius = (this.arena.collisionRadius ?? this.arena.playerRadius) + 1;
+
+    return this.players.some((player) => {
+      const nearestX = Math.min(Math.max(player.x, col * size), (col + 1) * size);
+      const nearestY = Math.min(Math.max(player.y, row * size), (row + 1) * size);
+
+      return Math.hypot(player.x - nearestX, player.y - nearestY) < radius;
+    });
+  }
+
+  closePendingWalls() {
+    if (this.closingWalls.size === 0) return;
+
+    const size = this.scenario.cellSize;
+    for (const key of [...this.closingWalls]) {
+      const [col, row] = key.split(',').map(Number);
+      if (!this.wallBlockedByPlayer(col, row)) {
+        this.solid[row][col] = true;
+        this.openedWalls.delete(key);
+        this.closingWalls.delete(key);
+        // Una celda que cayó dentro del hueco no se podría recoger: se retira.
+        this.items = this.items.filter(
+          (item) =>
+            Math.floor(item.x / size) !== col || Math.floor(item.y / size) !== row
+        );
+      }
     }
   }
 
@@ -212,7 +313,27 @@ class ArenaEngine {
       if (!this.collides(candidate.x, candidate.y, this.arena.itemRadius)) spot = candidate;
     }
 
-    return spot || { x: this.arena.width / 2, y: margin };
+    return spot || this.scanForItemSpot() || { x: this.arena.width / 2, y: margin };
+  }
+
+  // Respaldo: recorre los centros de las celdas del escenario (desde una al azar) y devuelve
+  // el primero libre de muros y sin otra celda de energía encima.
+  scanForItemSpot() {
+    if (!this.scenario) return null;
+
+    const { cols, rows, cellSize } = this.scenario;
+    const total = cols * rows;
+    const first = Math.floor(this.random() * total);
+
+    for (let i = 0; i < total; i += 1) {
+      const index = (first + i) % total;
+      const x = (index % cols) * cellSize + cellSize / 2;
+      const y = Math.floor(index / cols) * cellSize + cellSize / 2;
+      const taken = this.items.some((item) => item.x === x && item.y === y);
+      if (!taken && !this.collides(x, y, this.arena.itemRadius)) return { x, y };
+    }
+
+    return null;
   }
 
   finishIfNeeded() {
@@ -230,6 +351,7 @@ class ArenaEngine {
   finish() {
     if (this.status === 'FINISHED') return;
 
+    this.events?.finish(this);
     const best = Math.max(...this.players.map((player) => player.score));
     this.status = 'FINISHED';
     this.winnerIds = this.players
@@ -257,7 +379,11 @@ class ArenaEngine {
         id: item.id,
         x: round(item.x),
         y: round(item.y),
+        bonus: Boolean(item.bonus),
       })),
+      events: this.events ? this.events.publicState() : [],
+      // Muros abiertos por eventos, como [columna, fila] (los que se están cerrando incluidos).
+      openWalls: [...this.openedWalls].sort().map((key) => key.split(',').map(Number)),
       winnerIds: this.winnerIds,
     };
   }
@@ -268,6 +394,8 @@ class ArenaEngine {
         this.players.map((player) => [player.id, player.score])
       ),
       winnerIds: this.winnerIds,
+      // Solo si la partida tiene eventos especiales (ver modules/events).
+      ...(this.events ? { events: this.events.history() } : {}),
     };
   }
 }

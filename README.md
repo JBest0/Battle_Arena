@@ -812,6 +812,76 @@ crear una partida, `scenarioId` es un id del catálogo o `"random"`; si falta se
 (el de menor `order`) y siempre se guarda un id concreto en `matches.scenario_id`. En la sala
 de juego el formulario recuerda el último escenario elegido.
 
+## Eventos especiales
+
+Cada cierto tiempo aleatorio ocurre un evento que cambia la partida por unos segundos (US-22).
+Se anuncia en el HUD con un banner, un borde de color en la arena y un sonido; mientras dura
+aparece en el panel con su cuenta atrás, y al terminar todo vuelve a la normalidad. Solo hay
+un evento a la vez y nunca sale el mismo tipo dos veces seguidas.
+
+| Tipo (`type`) | Qué hace |
+| --- | --- |
+| `reactor-overload` | Sobrecarga del reactor: las celdas de energía valen el doble (x2 puntos) |
+| `energy-rain` | Lluvia de energía: caen hasta 8 celdas extra (azules); las que nadie recoge se retiran al terminar |
+| `blackout` | Apagón: una mitad de la arena queda a oscuras y el jugador conserva una pequeña luz |
+| `alternate-route` | Ruta alternativa: se abren 2 huecos de 2 celdas en muros de 1 o 2 de grosor; al terminar se cierran, pero nunca encima de un jugador (esperan a que quede libre) |
+
+La ruta alternativa necesita un escenario con muros; en un campo abierto simplemente no sale.
+La invasión de guardianes (US-036) queda pendiente hasta que existan los guardianes en el motor.
+
+Parámetros (variables de entorno opcionales del backend, Anexo B del ERS):
+
+| Variable | Por defecto | Rango | Significado |
+| --- | --- | --- | --- |
+| `EVENT_INTERVAL_SECONDS` | 45 | 15 – 180 | Tiempo medio entre eventos (el real es de 0,5 a 1,5 veces este valor) |
+| `EVENT_DURATION_SECONDS` | 15 | 5 – 60 | Duración de cada evento |
+
+### Código (`backend/src/modules/events/`)
+
+- `specialEvent.js`: clase base con los metadatos del tipo (`type`, `label`, `description`,
+  `accent`, `weight`, `canStart`) y el ciclo de vida (`start`, `update`, `modify`, `end`, `params`).
+- `eventFactory.js`: **patrón Factory**. Registra los tipos por clase y crea el evento pedido.
+- `eventScheduler.js`: programa los eventos de una partida (espera, lanza, revierte), guarda
+  el historial y arma lo que ve el cliente. No conoce ningún tipo concreto.
+- `types/`: los cuatro tipos y `types/index.js` con la lista de los que conoce el juego.
+
+Para agregar un tipo nuevo no se toca el motor ni el programador: se crea el archivo en
+`types/` y se añade a la lista.
+
+```js
+const { SpecialEvent } = require('../specialEvent');
+
+class TripleEnergyEvent extends SpecialEvent {
+  modify(modifiers) {
+    modifiers.pointMultiplier *= 3; // se aplica mientras dura y se revierte solo
+  }
+}
+TripleEnergyEvent.type = 'triple-energy';
+TripleEnergyEvent.label = 'Energía triple';
+TripleEnergyEvent.description = 'Las celdas valen el triple.';
+TripleEnergyEvent.accent = '#ffd166'; // color del anuncio; el cliente no necesita cambios
+module.exports = { TripleEnergyEvent };
+```
+
+Lo que el motor ofrece a los eventos (`ArenaEngine`): `random` (inyectable, para pruebas con
+semilla), `arena`, `elapsed`, `spawnBonusItem()` / `removeBonusItems()` y los muros dinámicos
+`openWall(col, fila)` / `requestWallClose(celdas)` (cada partida tiene su copia de los muros,
+el escenario compartido no se modifica). Los eventos aportan al multiplicador de puntos con
+`modify(modifiers)`.
+
+En cada `arena:state` viajan `events` (el evento activo con `id`, `type`, `name`,
+`description`, `accent`, `duration`, `remaining` y `params`; `[]` si no hay) y `openWalls`
+(muros abiertos, como `[columna, fila]`); las celdas extra llevan `bonus: true`.
+
+Al terminar la partida, `result.events` se guarda en la tabla `match_events` (tipo, segundo en
+que empezó, duración, segundo en que terminó y `params` en JSON) dentro de la misma
+transacción que el resultado. Los segundos cuentan desde que arranca el juego, sin la cuenta
+regresiva.
+
+El sonido se sintetiza en el navegador (Web Audio): no hay archivos de audio ni licencias que
+documentar. El botón «Sonido» del panel lo silencia y se recuerda en `localStorage`. El
+apagón es solo visual: el servidor decide la región y el cliente la oscurece.
+
 ## Base de datos
 
 - PostgreSQL 16 + Prisma.
@@ -839,8 +909,9 @@ PostgreSQL con las migraciones aplicadas y usan una carpeta temporal para `UPLOA
 el job de CI levanta PostgreSQL y aplica las migraciones.
 
 Las del juego que **no** necesitan base de datos: `arenaEngine`, `matchRoomManager`,
-`realtime.socket` (socket.io real con `socket.io-client`), `game.config`, `game.start` y
-`game.finish`. Usan `tests/helpers/inMemoryGame.js`, un repositorio en memoria con la
+`realtime.socket` (socket.io real con `socket.io-client`), `game.config`, `game.start`,
+`game.finish` y las de eventos especiales (`events.factory`, `events.scheduler`,
+`arenaEngine.events`, `matchRoomManager.events` y `game.events.persist`). Usan `tests/helpers/inMemoryGame.js`, un repositorio en memoria con la
 misma interfaz que `GameRepository`.
 
 ## Desarrollo sin Docker

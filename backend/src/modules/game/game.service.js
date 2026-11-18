@@ -218,9 +218,11 @@ class GameService {
    * Idempotente. Después hay que llamar a statsService.recordMatchResult(matchId).
    *
    * @param {string} matchId
-   * @param {{ scores: Record<string, number>, winnerIds: string[] }} result
+   * @param {{ scores: Record<string, number>, winnerIds: string[], events?: object[] }} result
+   *   `events`: eventos especiales ocurridos (ver EventScheduler.history); se guardan en la
+   *   misma transacción que el resultado
    */
-  async finishMatch(matchId, { scores, winnerIds }) {
+  async finishMatch(matchId, { scores, winnerIds, events = [] }) {
     return this.unitOfWork.run(async (tx) => {
       await this.gameRepository.lockMatch(matchId, tx);
       const match = await this.gameRepository.findMatchWithParticipants(
@@ -250,6 +252,7 @@ class GameService {
           endedAt: this.clock(),
           winnerId: winnerIds.length === 1 ? winnerIds[0] : null,
           scores,
+          events,
         },
         tx
       );

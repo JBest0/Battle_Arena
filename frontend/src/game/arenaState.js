@@ -9,7 +9,13 @@
  *   timeRemaining: number | null,   // segundos (modo TIME)
  *   targetPoints: number | null,    // (modo POINTS)
  *   players: [{ id, username, avatarUrl, x, y, score, color }],
- *   items: [{ id, x, y }],
+ *   items: [{ id, x, y, bonus }],   // bonus: celda extra de un evento (lluvia de energía)
+ *   events: [{                      // evento especial activo (a lo sumo uno), [] si no hay
+ *     id, type, name, description, accent,   // accent: color #rrggbb
+ *     duration, remaining,                   // segundos
+ *     params,                                // datos del tipo (p. ej. blackout: { side, region })
+ *   }],
+ *   openWalls: [[col, fila]],       // muros abiertos por un evento (ruta alternativa)
  *   winnerIds: string[],            // vacío mientras se juega; varios = empate
  * }
  * Las dimensiones de la arena no viajan en cada estado: vienen de GET /api/game/options.
@@ -26,6 +32,7 @@ export function toHud(state) {
       state.timeRemaining === null ? null : Math.ceil(state.timeRemaining),
     targetPoints: state.targetPoints,
     winnerIds: state.winnerIds,
+    events: state.events || [],
     players: state.players.map(({ id, username, avatarUrl, score, color }) => ({
       id,
       username,

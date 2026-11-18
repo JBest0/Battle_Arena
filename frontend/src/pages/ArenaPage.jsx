@@ -10,10 +10,13 @@ import {
 import { useAuth } from '../auth/AuthContext';
 import ArenaCanvas from '../components/game/ArenaCanvas';
 import ArenaHud from '../components/game/ArenaHud';
+import EventBanner from '../components/game/EventBanner';
 import WaitingRoom from '../components/game/WaitingRoom';
 import { describeConfig } from '../game/gameConfig';
 import { useMatch } from '../hooks/useMatch';
 import { useArenaSocket } from '../hooks/useArenaSocket';
+import { useEventAnnouncement } from '../hooks/useEventAnnouncement';
+import { isSoundEnabled, setSoundEnabled } from '../game/eventSound';
 import { useKeyboardInput } from '../hooks/useKeyboardInput';
 
 function errorText(err) {
@@ -23,6 +26,13 @@ function errorText(err) {
 function ArenaScreen({ match, arena, scenario, currentUserId }) {
   const { stateRef, hud, connection, error, sendInput } = useArenaSocket(match.id);
   const status = hud?.status;
+  const announcement = useEventAnnouncement(hud?.events);
+  const [soundEnabled, setSound] = useState(isSoundEnabled);
+
+  function toggleSound() {
+    setSoundEnabled(!soundEnabled);
+    setSound(!soundEnabled);
+  }
 
   useKeyboardInput(sendInput, connection === 'connected' && status !== 'FINISHED');
 
@@ -63,8 +73,17 @@ function ArenaScreen({ match, arena, scenario, currentUserId }) {
       )}
 
       <div className="arena-layout">
-        <div className="arena-stage">
-          <ArenaCanvas stateRef={stateRef} arena={arena} scenario={scenario} />
+        <div
+          className={`arena-stage${hud?.events?.length ? ' arena-stage-event' : ''}`}
+          style={hud?.events?.length ? { '--event-accent': hud.events[0].accent } : undefined}
+        >
+          <ArenaCanvas
+            stateRef={stateRef}
+            arena={arena}
+            scenario={scenario}
+            currentUserId={currentUserId}
+          />
+          <EventBanner event={announcement} />
           {status === 'COUNTDOWN' && (
             <div className="arena-countdown" role="status" aria-live="polite">
               <span className="arena-countdown-label">Prepárate</span>
@@ -77,6 +96,8 @@ function ArenaScreen({ match, arena, scenario, currentUserId }) {
             config={match.config}
             hud={hud}
             currentUserId={currentUserId}
+            soundEnabled={soundEnabled}
+            onToggleSound={toggleSound}
           />
         )}
       </div>

@@ -1,5 +1,6 @@
 const path = require('path');
 const { z } = require('zod');
+const { EVENT_LIMITS } = require('./modules/game/game.config');
 
 require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 
@@ -18,6 +19,19 @@ const envSchema = z.object({
   UPLOADS_DIR: z.string().min(1, 'UPLOADS_DIR es obligatorio'),
   // Carpeta con los archivos .json de escenarios (por defecto, src/scenarios).
   SCENARIOS_DIR: z.string().default(path.resolve(__dirname, 'scenarios')),
+  // Eventos especiales: tiempo medio entre eventos y duración de cada uno (segundos).
+  EVENT_INTERVAL_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(EVENT_LIMITS.intervalSeconds.min)
+    .max(EVENT_LIMITS.intervalSeconds.max)
+    .default(EVENT_LIMITS.intervalSeconds.default),
+  EVENT_DURATION_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(EVENT_LIMITS.durationSeconds.min)
+    .max(EVENT_LIMITS.durationSeconds.max)
+    .default(EVENT_LIMITS.durationSeconds.default),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -46,5 +60,7 @@ module.exports = {
   mailFrom: env.MAIL_FROM,
   uploadsDir: env.UPLOADS_DIR,
   scenariosDir: env.SCENARIOS_DIR,
+  eventIntervalSeconds: env.EVENT_INTERVAL_SECONDS,
+  eventDurationSeconds: env.EVENT_DURATION_SECONDS,
   nodeEnv: process.env.NODE_ENV || 'development',
 };
