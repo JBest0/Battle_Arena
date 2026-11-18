@@ -3,6 +3,7 @@ const { usersController } = require('../../container');
 const { asyncHandler } = require('../../shared/asyncHandler');
 const { validate } = require('../../shared/middleware/validate');
 const { requireAuth } = require('../../shared/middleware/requireAuth');
+const { notFound } = require('../../shared/middleware/notFound');
 const {
   uploadAvatarMiddleware,
 } = require('../../infrastructure/FileStorage');
@@ -69,6 +70,9 @@ usersRouter.get(
   requireAuth,
   asyncHandler(usersController.getPublicPlayer.bind(usersController))
 );
+
+// CA-28.9: el historial es de solo lectura; cualquier escritura responde 404.
+usersRouter.all('/:id/matches', notFound);
 
 usersRouter.use(usersController.notImplemented.bind(usersController));
 

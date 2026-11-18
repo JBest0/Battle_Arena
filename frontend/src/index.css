@@ -362,6 +362,15 @@ body {
   margin-top: 16px;
 }
 
+.test-three-fields {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 12px 0;
+}
+
+.test-span-two {
+  grid-column: span 2;
+}
+
 .test-output {
   margin-top: 20px;
 }
@@ -388,9 +397,11 @@ body {
   .test-heading {
     flex-direction: column;
   }
-
   .test-match-form {
     grid-template-columns: 1fr;
+  }
+  .test-span-two {
+    grid-column: auto;
   }
 }
 

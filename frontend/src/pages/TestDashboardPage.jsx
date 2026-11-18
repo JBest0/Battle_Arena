@@ -9,7 +9,14 @@ import {
   listOpenMatches,
   startMatch,
 } from '../api/game';
-import { getMyProfile, getRanking } from '../api/profile';
+import {
+  getMatchHistory,
+  getMyProfile,
+  getProfile,
+  getRanking,
+  getRankingPage,
+  updateMyProfile,
+} from '../api/profile';
 import { useAuth } from '../auth/AuthContext';
 
 const INITIAL_MATCH = {
@@ -50,6 +57,12 @@ export default function TestDashboardPage() {
   const [loginBusy, setLoginBusy] = useState(false);
   const [match, setMatch] = useState(INITIAL_MATCH);
   const [matchId, setMatchId] = useState('');
+  const [rankingLimit, setRankingLimit] = useState(10);
+  const [rankingPage, setRankingPage] = useState(1);
+  const [rankingPageSize, setRankingPageSize] = useState(20);
+  const [historyUserId, setHistoryUserId] = useState('');
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPageSize, setHistoryPageSize] = useState(10);
   const [result, setResult] = useState(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -354,6 +367,183 @@ export default function TestDashboardPage() {
               onClick={() => runAction(() => startMatch(matchId))}
             >
               Iniciar partida
+            </ActionButton>
+          </div>
+        </section>
+
+        <section className="card test-card">
+          <h3>6. Ranking paginado</h3>
+          <p>
+            Prueba el modo heredado, la paginación y la combinación inválida
+            de <code>limit</code> con <code>page</code>.
+          </p>
+          <div className="test-match-form test-three-fields">
+            <div className="field">
+              <label htmlFor="test-ranking-limit">Limit (1-50)</label>
+              <input
+                id="test-ranking-limit"
+                type="number"
+                min="1"
+                max="50"
+                value={rankingLimit}
+                onChange={(event) => setRankingLimit(Number(event.target.value))}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="test-ranking-page">Página (mín. 1)</label>
+              <input
+                id="test-ranking-page"
+                type="number"
+                min="1"
+                value={rankingPage}
+                onChange={(event) => setRankingPage(Number(event.target.value))}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="test-ranking-page-size">Tamaño (1-100)</label>
+              <input
+                id="test-ranking-page-size"
+                type="number"
+                min="1"
+                max="100"
+                value={rankingPageSize}
+                onChange={(event) => setRankingPageSize(Number(event.target.value))}
+              />
+            </div>
+          </div>
+          <div className="test-actions">
+            <ActionButton
+              disabled={!authenticated || busy}
+              onClick={() => runAction(() => getRanking(rankingLimit))}
+            >
+              Consultar modo limit
+            </ActionButton>
+            <ActionButton
+              disabled={!authenticated || busy}
+              onClick={() =>
+                runAction(() => getRankingPage(rankingPage, rankingPageSize))
+              }
+            >
+              Consultar página
+            </ActionButton>
+            <ActionButton
+              disabled={!authenticated || busy}
+              onClick={() =>
+                runAction(() =>
+                  client
+                    .get('/ranking', {
+                      params: {
+                        limit: rankingLimit,
+                        page: rankingPage,
+                        pageSize: rankingPageSize,
+                      },
+                    })
+                    .then((response) => response.data)
+                )
+              }
+            >
+              Probar combinación inválida
+            </ActionButton>
+          </div>
+        </section>
+
+        <section className="card test-card">
+          <h3>7. Historial y perfiles públicos</h3>
+          <p>
+            Consulta el historial paginado y el perfil de cualquier usuario.
+            El propio ID se completa después de iniciar sesión.
+          </p>
+          <div className="test-match-form test-three-fields">
+            <div className="field test-span-two">
+              <label htmlFor="test-history-user">ID de usuario</label>
+              <input
+                id="test-history-user"
+                value={historyUserId || user?.id || ''}
+                placeholder="UUID del jugador"
+                onChange={(event) => setHistoryUserId(event.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="test-history-page">Página</label>
+              <input
+                id="test-history-page"
+                type="number"
+                min="1"
+                value={historyPage}
+                onChange={(event) => setHistoryPage(Number(event.target.value))}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="test-history-page-size">Tamaño (1-50)</label>
+              <input
+                id="test-history-page-size"
+                type="number"
+                min="1"
+                max="50"
+                value={historyPageSize}
+                onChange={(event) => setHistoryPageSize(Number(event.target.value))}
+              />
+            </div>
+          </div>
+          <div className="test-actions">
+            <ActionButton
+              disabled={!authenticated || busy || !(historyUserId || user?.id)}
+              onClick={() =>
+                runAction(() =>
+                  getMatchHistory(
+                    historyUserId || user.id,
+                    historyPage,
+                    historyPageSize
+                  )
+                )
+              }
+            >
+              Consultar historial
+            </ActionButton>
+            <ActionButton
+              disabled={!authenticated || busy || !(historyUserId || user?.id)}
+              onClick={() =>
+                runAction(() => getProfile(historyUserId || user.id))
+              }
+            >
+              Consultar perfil público
+            </ActionButton>
+          </div>
+        </section>
+
+        <section className="card test-card">
+          <h3>8. Protección del perfil</h3>
+          <p>
+            Comprueba que las estadísticas no se puedan modificar y que las
+            rutas de escritura del historial respondan 404.
+          </p>
+          <div className="test-actions">
+            <ActionButton
+              disabled={!authenticated || busy}
+              onClick={() =>
+                runAction(() =>
+                  updateMyProfile({
+                    rankingPoints: 999,
+                  })
+                )
+              }
+            >
+              Intentar editar rankingPoints
+            </ActionButton>
+            <ActionButton
+              disabled={!authenticated || busy || !(historyUserId || user?.id)}
+              onClick={() =>
+                runAction(() =>
+                  client
+                    .post(
+                      `/users/${historyUserId || user.id}/matches`,
+                      {}
+                    )
+                    .then((response) => response.data)
+                )
+              }
+            >
+              Probar escritura de historial
             </ActionButton>
           </div>
         </section>

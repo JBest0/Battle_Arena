@@ -3,7 +3,7 @@ const { statsController } = require('../../container');
 const { asyncHandler } = require('../../shared/asyncHandler');
 const { validate } = require('../../shared/middleware/validate');
 const { requireAuth } = require('../../shared/middleware/requireAuth');
-const { rankingQuerySchema } = require('../users/users.schemas');
+const { rankingQuerySchema } = require('./stats.schemas');
 
 const rankingRouter = express.Router();
 

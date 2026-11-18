@@ -28,6 +28,9 @@ const updateProfileSchema = z
       .transform((value) => (value === '' ? null : value))
       .optional(),
   })
+  // CA-28.9: las estadísticas no se editan desde el perfil; cualquier otro
+  // campo se rechaza en vez de ignorarse en silencio.
+  .strict('Solo se pueden modificar el nombre visible y la biografía')
   .refine(
     (data) => data.displayName !== undefined || data.bio !== undefined,
     { message: 'No hay cambios que guardar' }
