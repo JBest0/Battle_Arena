@@ -167,6 +167,26 @@ describe('POST /api/auth/login', () => {
     expect(verified.body).not.toHaveProperty('notice');
   });
 
+  it('rechaza el login de una cuenta creada únicamente con GitHub', async () => {
+    await prisma.user.create({
+      data: {
+        username: 'solo_social',
+        email: 'social@test.com',
+        passwordHash: null,
+        emailVerified: true,
+        avatarId: DEFAULT_AVATAR_ID,
+      },
+    });
+
+    const response = await login({
+      identifier: 'solo_social',
+      password: PASSWORD,
+    });
+
+    expect(response.status).toBe(401);
+    expect(response.body.error.code).toBe('INVALID_CREDENTIALS');
+  });
+
   it('CA-03.3: rechaza una contraseña incorrecta', async () => {
     const response = await login({
       identifier: 'jugador_verificado',

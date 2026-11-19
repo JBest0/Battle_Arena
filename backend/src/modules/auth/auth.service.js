@@ -73,14 +73,12 @@ class AuthService {
 
     try {
       ({ user, token } = await this.unitOfWork.run(async (tx) => {
-        const avatarId = await this.userRepository.getDefaultAvatarId(tx);
-
-        const createdUser = await this.userRepository.createWithStats(
+        const createdUser = await this.createUserWithDefaults(
           {
             username: dto.username,
             email: dto.email,
             passwordHash,
-            avatarId,
+            emailVerified: false,
           },
           tx
         );
@@ -102,6 +100,7 @@ class AuthService {
             { username: 'Ya existe una cuenta con este nombre de usuario' }
           );
         }
+
         if (targetIncludes(err.meta && err.meta.target, 'email')) {
           throw new AppError(
             409,
@@ -131,11 +130,22 @@ class AuthService {
     };
   }
 
+  async createUserWithDefaults(
+    { username, email, passwordHash = null, emailVerified = false },
+    tx
+  ) {
+    const avatarId = await this.userRepository.getDefaultAvatarId(tx);
+    return this.userRepository.createWithStats(
+      { username, email, passwordHash, emailVerified, avatarId },
+      tx
+    );
+  }
+
   async login({ identifier, password }) {
     const user = await this.userRepository.findByIdentifier(identifier);
     const passwordMatches = await bcrypt.compare(
       password,
-      user ? user.passwordHash : DUMMY_HASH
+      user && user.passwordHash ? user.passwordHash : DUMMY_HASH
     );
 
     if (!user || !passwordMatches) {
@@ -375,7 +385,10 @@ class AuthService {
       );
     }
 
-    if (await bcrypt.compare(password, record.user.passwordHash)) {
+    if (
+      record.user.passwordHash &&
+      (await bcrypt.compare(password, record.user.passwordHash))
+    ) {
       throw new AppError(
         400,
         'PASSWORD_REUSED',

@@ -26,4 +26,10 @@ export function getRanking(limit = 10) {
     .then((response) => response.data);
 }
 
+export function getRankingPage(page = 1, pageSize = 20) {
+  return client
+    .get('/ranking', { params: { page, pageSize } })
+    .then((response) => response.data);
+}
+
 export { getErrorMessage };

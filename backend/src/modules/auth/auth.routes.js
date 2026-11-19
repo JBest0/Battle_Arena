@@ -3,6 +3,7 @@ const { authController } = require('../../container');
 const { asyncHandler } = require('../../shared/asyncHandler');
 const { validate } = require('../../shared/middleware/validate');
 const { requireAuth } = require('../../shared/middleware/requireAuth');
+const { oauthRouter } = require('./oauth/oauth.routes');
 const {
   registerSchema,
   loginSchema,
@@ -13,6 +14,8 @@ const {
 } = require('./auth.schemas');
 
 const router = express.Router();
+
+router.use('/oauth', oauthRouter);
 
 router.post(
   '/register',

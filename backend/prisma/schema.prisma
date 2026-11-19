@@ -27,7 +27,7 @@ model User {
   id            String   @id @default(uuid()) @db.Uuid
   username      String   @unique
   email         String   @unique
-  passwordHash  String   @map("password_hash")
+  passwordHash  String?  @map("password_hash")
   emailVerified   Boolean   @default(false) @map("email_verified")
   displayName     String?   @map("display_name") @db.VarChar(40)
   bio             String?   @db.VarChar(200)
@@ -46,8 +46,23 @@ model User {
   wonMatches                Match[]                   @relation("MatchWinner")
   createdMatches            Match[]                   @relation("MatchCreator")
   matchParticipants         MatchParticipant[]
+  externalIdentities        ExternalIdentity[]
 
   @@map("users")
+}
+
+model ExternalIdentity {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  provider        String
+  providerUserId  String   @map("provider_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+  @@map("external_identities")
 }
 
 model Avatar {
@@ -158,6 +173,8 @@ model MatchParticipant {
   finalScore Int          @default(0) @map("final_score")
   position   Int?
   result     MatchResult?
+  isPersonalBest Boolean @default(false) @map("is_personal_best")
+  isGlobalRecord  Boolean @default(false) @map("is_global_record")
 
   match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)

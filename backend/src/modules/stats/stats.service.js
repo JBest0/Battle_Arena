@@ -3,6 +3,11 @@ const { AppError } = require('../../shared/AppError');
 const DEFAULT_RANKING_LIMIT = 10;
 const MAX_RANKING_LIMIT = 50;
 
+// Regla del ranking (CA-27.5, CA-27.6): la métrica principal es
+// `rankingPoints` (victoria +3, empate +1, derrota 0); a igualdad de puntos
+// desempata `gamesWon` (desc) y después `username` (asc).
+const RANKING_METRIC = { key: 'rankingPoints', label: 'Puntos de ranking' };
+
 class StatsService {
   constructor({
     statsRepository,
@@ -56,6 +61,7 @@ class StatsService {
    */
   async recordMatchResult(matchId) {
     return this.unitOfWork.run(async (tx) => {
+      await this.matchRepository.lockMatch(matchId, tx);
       const match = await this.matchRepository.findFinishedWithParticipants(
         matchId,
         tx
@@ -78,6 +84,17 @@ class StatsService {
       }
 
       const results = this.computeResults(match.participants);
+      const globalBestScore = await this.statsRepository.getGlobalBestScore(tx);
+
+      for (const result of results) {
+        const previousStats = await this.statsRepository.getStats(
+          result.userId,
+          tx
+        );
+        const previousBest = previousStats?.bestScore ?? 0;
+        result.isPersonalBest = result.finalScore > previousBest;
+        result.isGlobalRecord = result.finalScore > globalBestScore;
+      }
 
       await this.matchRepository.setParticipantResults(tx, matchId, results);
 
@@ -128,10 +145,25 @@ class StatsService {
 
     return { items, totalPlayers };
   }
+
+  // La posición se calcula sobre todos los jugadores y luego se pagina, así
+  // que la página 2 empieza en `pageSize + 1`.
+  async getRankingPage({ page, pageSize }) {
+    const [items, totalPlayers] = await Promise.all([
+      this.statsRepository.getRankingPage({
+        offset: (page - 1) * pageSize,
+        limit: pageSize,
+      }),
+      this.statsRepository.getTotalPlayers(),
+    ]);
+
+    return { items, totalPlayers, page, pageSize, metric: RANKING_METRIC };
+  }
 }
 
 module.exports = {
   StatsService,
   DEFAULT_RANKING_LIMIT,
   MAX_RANKING_LIMIT,
+  RANKING_METRIC,
 };

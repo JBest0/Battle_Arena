@@ -5,6 +5,10 @@ class MatchRepository {
     this.db = db;
   }
 
+  async lockMatch(matchId, tx) {
+    await tx.$queryRaw`SELECT id FROM matches WHERE id = ${matchId}::uuid FOR UPDATE`;
+  }
+
   findFinishedWithParticipants(matchId, tx = this.db) {
     return tx.match.findUnique({
       where: { id: matchId },
@@ -29,7 +33,12 @@ class MatchRepository {
         where: {
           matchId_userId: { matchId, userId: result.userId },
         },
-        data: { result: result.result, position: result.position },
+        data: {
+          result: result.result,
+          position: result.position,
+          isPersonalBest: result.isPersonalBest,
+          isGlobalRecord: result.isGlobalRecord,
+        },
       });
     }
   }

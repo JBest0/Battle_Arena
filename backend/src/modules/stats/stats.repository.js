@@ -11,6 +11,14 @@ class StatsRepository {
     return tx.playerStats.findUnique({ where: { userId } });
   }
 
+  async getGlobalBestScore(tx = this.db) {
+    const result = await tx.playerStats.aggregate({
+      _max: { bestScore: true },
+    });
+
+    return result._max.bestScore ?? 0;
+  }
+
   async ensureStats(userId, tx = this.db) {
     return tx.playerStats.upsert({
       where: { userId },
@@ -65,6 +73,33 @@ class StatsRepository {
       LEFT JOIN "avatars" a ON a.id = u.avatar_id
       ORDER BY position ASC
       LIMIT ${limit}
+    `;
+  }
+
+  async getRankingPage({ offset, limit }, tx = this.db) {
+    return tx.$queryRaw`
+      WITH ranked AS (
+        SELECT
+          u.id AS "userId",
+          u.username,
+          a.url AS "avatarUrl",
+          COALESCE(ps.ranking_points, 0)::int AS "rankingPoints",
+          COALESCE(ps.games_played, 0)::int AS "gamesPlayed",
+          COALESCE(ps.games_won, 0)::int AS "gamesWon",
+          (ROW_NUMBER() OVER (
+            ORDER BY
+              COALESCE(ps.ranking_points, 0) DESC,
+              COALESCE(ps.games_won, 0) DESC,
+              u.username ASC
+          ))::int AS position
+        FROM "users" u
+        LEFT JOIN "player_stats" ps ON ps.user_id = u.id
+        LEFT JOIN "avatars" a ON a.id = u.avatar_id
+      )
+      SELECT * FROM ranked
+      ORDER BY position ASC
+      LIMIT ${limit}
+      OFFSET ${offset}
     `;
   }
 
@@ -138,6 +173,25 @@ class StatsRepository {
               ? participant.user.avatar.url
               : null,
             finalScore: participant.finalScore,
+          })),
+        // Lista completa (incluido el propio jugador), ordenada por posición.
+        participants: [...match.participants]
+          .sort(
+            (a, b) =>
+              (a.position ?? Number.MAX_SAFE_INTEGER) -
+                (b.position ?? Number.MAX_SAFE_INTEGER) ||
+              b.finalScore - a.finalScore ||
+              a.user.username.localeCompare(b.user.username)
+          )
+          .map((participant) => ({
+            id: participant.userId,
+            username: participant.user.username,
+            avatarUrl: participant.user.avatar
+              ? participant.user.avatar.url
+              : null,
+            finalScore: participant.finalScore,
+            position: participant.position,
+            result: participant.result,
           })),
       };
     });

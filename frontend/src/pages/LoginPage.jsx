@@ -32,6 +32,15 @@ export default function LoginPage() {
 
   const stateMessage = location.state?.message;
   const from = location.state?.from;
+  const oauthError = new URLSearchParams(location.search).get('oauthError');
+
+  const OAUTH_ERROR_MESSAGES = {
+    ACCESS_DENIED: 'Cancelaste el acceso con GitHub.',
+    STATE_INVALID: 'La sesión de autorización no es válida. Intenta de nuevo.',
+    PROVIDER_ERROR: 'GitHub no pudo completar el inicio de sesión.',
+    EMAIL_NOT_VERIFIED:
+      'GitHub no proporcionó un correo principal verificado.',
+  };
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -93,6 +102,13 @@ export default function LoginPage() {
         </p>
       )}
 
+      {oauthError && (
+        <p className="alert alert-error" role="alert">
+          {OAUTH_ERROR_MESSAGES[oauthError] ||
+            'No se pudo iniciar sesión con GitHub.'}
+        </p>
+      )}
+
       {generalError && (
         <p className="alert alert-error" role="alert">
           {generalError}
@@ -144,6 +160,10 @@ export default function LoginPage() {
           {submitting ? 'Ingresando…' : 'Iniciar sesión'}
         </button>
       </form>
+
+      <a className="button github-login-button" href="/api/auth/oauth/github">
+        Continuar con GitHub
+      </a>
 
       <p className="form-footer">
         ¿No tienes cuenta? <Link to="/register">Regístrate</Link>
