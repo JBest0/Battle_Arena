@@ -26,6 +26,11 @@ const {
   AchievementEvaluator,
 } = require('./modules/stats/achievements/AchievementEvaluator');
 const { rules } = require('./modules/stats/achievements/rules');
+const { prisma } = require('./infrastructure/prisma');
+const { GithubProvider } = require('./modules/auth/oauth/githubProvider');
+const { ExternalIdentityRepository } = require('./modules/auth/oauth/externalIdentity.repository');
+const { OauthService } = require('./modules/auth/oauth/oauth.service');
+const { OauthController } = require('./modules/auth/oauth/oauth.controller');
 
 const userRepository = new UserRepository();
 const avatarRepository = new AvatarRepository();
@@ -39,12 +44,25 @@ const emailService = new EmailService(config);
 const fileStorage = new FileStorage(config);
 const unitOfWork = new UnitOfWork();
 const tokenCleanupJob = new TokenCleanupJob({ tokenRepository });
+const externalIdentityRepository = new ExternalIdentityRepository(prisma);
+const githubProvider = new GithubProvider({
+  clientId: config.githubClientId,
+  clientSecret: config.githubClientSecret,
+  redirectUri: config.oauthRedirectUri,
+});
 
 const authService = new AuthService({
   userRepository,
   tokenRepository,
   emailService,
   unitOfWork,
+});
+const oauthService = new OauthService({
+  provider: githubProvider,
+  externalIdentityRepository,
+  userRepository,
+  unitOfWork,
+  authService,
 });
 
 const usersService = new UsersService({ userRepository, statsRepository });
@@ -72,6 +90,7 @@ const gameService = new GameService({
 const matchesService = new MatchesService({ matchesRepository });
 
 const authController = new AuthController({ authService });
+const oauthController = new OauthController({ oauthService, config });
 const usersController = new UsersController({ usersService, avatarService });
 const statsController = new StatsController({ statsService });
 const gameController = new GameController({ gameService });
@@ -91,6 +110,8 @@ module.exports = {
   unitOfWork,
   tokenCleanupJob,
   authService,
+  oauthService,
+  oauthController,
   usersService,
   avatarService,
   statsService,

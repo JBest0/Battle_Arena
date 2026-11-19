@@ -16,6 +16,9 @@ const envSchema = z.object({
   SMTP_PASS: z.string().default(''),
   MAIL_FROM: z.string().min(1, 'MAIL_FROM es obligatorio'),
   UPLOADS_DIR: z.string().min(1, 'UPLOADS_DIR es obligatorio'),
+  GITHUB_CLIENT_ID: z.string().optional(),
+  GITHUB_CLIENT_SECRET: z.string().optional(),
+  OAUTH_REDIRECT_URI: z.string().url('OAUTH_REDIRECT_URI debe ser una URL válida').optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -43,5 +46,8 @@ module.exports = {
   smtpPass: env.SMTP_PASS,
   mailFrom: env.MAIL_FROM,
   uploadsDir: env.UPLOADS_DIR,
+  githubClientId: env.GITHUB_CLIENT_ID || '',
+  githubClientSecret: env.GITHUB_CLIENT_SECRET || '',
+  oauthRedirectUri: env.OAUTH_REDIRECT_URI || '',
   nodeEnv: process.env.NODE_ENV || 'development',
 };

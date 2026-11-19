@@ -115,12 +115,40 @@ export function AuthProvider({ children }) {
   const refreshUser = useCallback(async () => {
     const response = await client.get('/auth/me');
     setUser(response.data.user);
+    setStatus('authenticated');
     return response.data.user;
   }, []);
 
+  const loginWithToken = useCallback(
+    async (value) => {
+      if (!value) throw new Error('El token OAuth está vacío');
+      storeToken(value);
+      return refreshUser();
+    },
+    [refreshUser, storeToken]
+  );
+
   const value = useMemo(
-    () => ({ user, token, status, login, logout, logoutLocal: clearSession, refreshUser }),
-    [user, token, status, login, logout, clearSession, refreshUser]
+    () => ({
+      user,
+      token,
+      status,
+      login,
+      loginWithToken,
+      logout,
+      logoutLocal: clearSession,
+      refreshUser,
+    }),
+    [
+      user,
+      token,
+      status,
+      login,
+      loginWithToken,
+      logout,
+      clearSession,
+      refreshUser,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

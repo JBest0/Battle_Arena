@@ -16,3 +16,7 @@ process.env.SMTP_USER = '';
 process.env.SMTP_PASS = '';
 process.env.MAIL_FROM = 'Battle Arena <no-reply@battlearena.local>';
 process.env.UPLOADS_DIR = path.join(os.tmpdir(), 'battle-arena-test-uploads');
+process.env.GITHUB_CLIENT_ID = '';
+process.env.GITHUB_CLIENT_SECRET = '';
+process.env.OAUTH_REDIRECT_URI =
+  'http://localhost:5173/api/auth/oauth/github/callback';

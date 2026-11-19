@@ -498,7 +498,7 @@ body {
 .game-window {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .game-window-bar {
@@ -627,7 +627,7 @@ body {
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 12px;
   margin: 0;
 }
@@ -943,6 +943,78 @@ body {
   display: block;
   width: 100%;
   height: auto;
+}
+
+.github-login-button {
+  width: 100%;
+  margin-top: 14px;
+  text-align: center;
+  background-color: #24292f;
+  text-decoration: none;
+}
+
+@media (max-width: 640px) {
+  .app-header,
+  .game-window-bar {
+    flex-wrap: wrap;
+  }
+
+  .app-nav,
+  .game-window-nav {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+  }
+
+  .app-nav a,
+  .app-nav button,
+  .game-window-nav a,
+  .game-window-nav button,
+  .button,
+  .button-small {
+    min-height: 44px;
+  }
+
+  .field input,
+  .field textarea,
+  .field select {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .app-main,
+  .game-window-main {
+    padding-inline: 10px;
+  }
+
+  .profile-header {
+    align-items: flex-start;
+  }
+
+  .table-wrapper {
+    max-width: calc(100vw - 20px);
+  }
+
+  .arena-layout {
+    gap: 10px;
+  }
+
+  .arena-toolbar {
+    align-items: flex-start;
+  }
+
+  .arena-toolbar-actions {
+    width: 100%;
+  }
+
+  .arena-toolbar-actions .button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .game-window {
+    min-height: 100dvh;
+  }
 }
 
 .arena-hud {

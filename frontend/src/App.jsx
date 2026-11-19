@@ -16,6 +16,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import PlayerProfilePage from './pages/PlayerProfilePage';
 import RankingPage from './pages/RankingPage';
 import TestDashboardPage from './pages/TestDashboardPage';
+import OAuthCallbackPage from './pages/OAuthCallbackPage';
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="forgot-password" element={<ForgotPasswordPage />} />
         <Route path="reset-password" element={<ResetPasswordPage />} />
         <Route path="test" element={<TestDashboardPage />} />
+        <Route path="oauth/callback" element={<OAuthCallbackPage />} />
 
         <Route element={<ProtectedRoute />}>
           <Route path="profile" element={<ProfilePage />} />
