@@ -15,6 +15,16 @@ export function getMatch(id) {
   return client.get(`/game/matches/${id}`).then((response) => response.data);
 }
 
+// Catálogo de escenarios (con el mapa de cada uno) -> { scenarios }
+export function listScenarios() {
+  return client.get('/game/scenarios').then((response) => response.data);
+}
+
+// Un escenario por id -> { scenario }
+export function getScenario(id) {
+  return client.get(`/game/scenarios/${id}`).then((response) => response.data);
+}
+
 // Partidas en espera a las que se puede unir -> { matches }
 export function listOpenMatches() {
   return client.get('/game/matches').then((response) => response.data);

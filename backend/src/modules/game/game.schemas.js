@@ -1,5 +1,6 @@
 const { z } = require('zod');
 const { END_MODES, GAME_LIMITS, normalizeConfig } = require('./game.config');
+const { SCENARIO_ID } = require('../scenarios/scenario.schema');
 
 function integerField(label, { min, max }) {
   return z
@@ -11,6 +12,11 @@ function integerField(label, { min, max }) {
     .max(max, `${label} debe ser como máximo ${max}`)
     .optional();
 }
+
+const scenarioIdSchema = z
+  .string({ invalid_type_error: 'Escenario inválido' })
+  .max(50)
+  .regex(SCENARIO_ID, 'Escenario inválido');
 
 const gameConfigSchema = z
   .object({
@@ -29,6 +35,8 @@ const gameConfigSchema = z
       'El máximo de jugadores',
       GAME_LIMITS.maxPlayers
     ),
+    // Id del catálogo o "random"; si falta se usa el escenario por defecto.
+    scenarioId: scenarioIdSchema.optional(),
   })
   .transform((config) => normalizeConfig(config));
 
@@ -38,4 +46,10 @@ const matchIdParamsSchema = z.object({
     .uuid('Partida inválida'),
 });
 
-module.exports = { gameConfigSchema, matchIdParamsSchema };
+const scenarioIdParamsSchema = z.object({ id: scenarioIdSchema });
+
+module.exports = {
+  gameConfigSchema,
+  matchIdParamsSchema,
+  scenarioIdParamsSchema,
+};

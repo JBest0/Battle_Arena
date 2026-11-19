@@ -1,6 +1,11 @@
 import { useEffect, useRef } from 'react';
+import { drawScenarioLayer, parseScenarioMap, scenarioPalette } from '../../game/scenarioRender';
 
 const TAU = Math.PI * 2;
+// Luz que conserva el jugador local dentro de la zona en apagón (unidades de arena).
+const BLACKOUT_LIGHT_RADIUS = 80;
+const BLACKOUT_ALPHA = 0.82;
+const BONUS_ITEM_COLOR = '#4cc9f0';
 const COLORS = {
   floor: '#16212c',
   grid: '#223140',
@@ -58,8 +63,8 @@ function drawFloor(ctx, arena) {
   ctx.strokeRect(3, 3, arena.width - 6, arena.height - 6);
 }
 
-function drawItems(ctx, items, radius) {
-  ctx.fillStyle = COLORS.item;
+function drawItems(ctx, items, radius, color = COLORS.item) {
+  ctx.fillStyle = color;
   ctx.strokeStyle = COLORS.itemEdge;
   ctx.lineWidth = 2;
 
@@ -69,6 +74,80 @@ function drawItems(ctx, items, radius) {
     ctx.fill();
     ctx.stroke();
   }
+}
+
+// Muros que un evento abrió (ruta alternativa): se tapan con piso y se marcan con el color
+// del evento para que se vea por dónde se puede pasar.
+function drawOpenWalls(ctx, openWalls, arena, palette, accent) {
+  const size = arena.cellSize;
+
+  for (const [col, row] of openWalls) {
+    const x = col * size;
+    const y = row * size;
+
+    ctx.fillStyle = palette.floor;
+    ctx.fillRect(x, y, size, size);
+    ctx.fillStyle = `${accent}33`;
+    ctx.fillRect(x, y, size, size);
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.strokeRect(x + 1, y + 1, size - 2, size - 2);
+    ctx.setLineDash([]);
+  }
+}
+
+// Sobrecarga del reactor: el reactor late con el color del evento.
+function drawReactorPulse(ctx, reactor, size, accent, time) {
+  const x = reactor.col * size;
+  const y = reactor.row * size;
+  const width = reactor.cols * size;
+  const height = reactor.rows * size;
+  const pulse = 0.5 + 0.5 * Math.sin(time / 140);
+
+  ctx.save();
+  ctx.globalAlpha = 0.25 + 0.35 * pulse;
+  ctx.fillStyle = accent;
+  ctx.fillRect(x, y, width, height);
+  ctx.globalAlpha = 0.6 + 0.4 * pulse;
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = 3 + 3 * pulse;
+  ctx.strokeRect(x - 2, y - 2, width + 4, height + 4);
+  ctx.restore();
+}
+
+// Apagón: oscurece la región del evento, con una luz suave alrededor del jugador local.
+function drawBlackout(ctx, region, light) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(region.x, region.y, region.width, region.height);
+  ctx.clip();
+
+  ctx.fillStyle = `rgba(2, 4, 10, ${BLACKOUT_ALPHA})`;
+  if (light) {
+    ctx.beginPath();
+    ctx.rect(region.x, region.y, region.width, region.height);
+    ctx.arc(light.x, light.y, BLACKOUT_LIGHT_RADIUS, 0, TAU, true);
+    ctx.fill('evenodd');
+
+    const glow = ctx.createRadialGradient(
+      light.x,
+      light.y,
+      BLACKOUT_LIGHT_RADIUS * 0.45,
+      light.x,
+      light.y,
+      BLACKOUT_LIGHT_RADIUS
+    );
+    glow.addColorStop(0, 'rgba(2, 4, 10, 0)');
+    glow.addColorStop(1, `rgba(2, 4, 10, ${BLACKOUT_ALPHA})`);
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(light.x, light.y, BLACKOUT_LIGHT_RADIUS, 0, TAU);
+    ctx.fill();
+  } else {
+    ctx.fillRect(region.x, region.y, region.width, region.height);
+  }
+  ctx.restore();
 }
 
 function drawPlayer(ctx, player, radius) {
@@ -116,14 +195,38 @@ function drawPlayer(ctx, player, radius) {
   ctx.fillText(label, x, labelY);
 }
 
-function draw(ctx, canvas, state, arena) {
+function draw(ctx, canvas, state, arena, layer, scenario, currentUserId, reactor, time) {
   const scale = canvas.width / arena.width;
+  const palette = scenarioPalette(scenario);
+  const event = state.events && state.events.length > 0 ? state.events[0] : null;
+  const accent = event?.accent || '#7bffb0';
 
-  ctx.setTransform(scale, 0, 0, scale, 0, 0);
-  drawFloor(ctx, arena);
-  drawItems(ctx, state.items, arena.itemRadius);
+  if (layer) {
+    // capa fija del escenario (piso, muros, reactor), dibujada una sola vez por tamaño
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(layer, 0, 0);
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  } else {
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    drawFloor(ctx, arena);
+  }
+  if (state.openWalls && state.openWalls.length > 0) {
+    drawOpenWalls(ctx, state.openWalls, arena, palette, accent);
+  }
+  if (event?.type === 'reactor-overload' && reactor) {
+    drawReactorPulse(ctx, reactor, arena.cellSize, accent, time);
+  }
+
+  // Las celdas extra de la lluvia de energía se distinguen de las normales.
+  drawItems(ctx, state.items.filter((item) => !item.bonus), arena.itemRadius, palette.cell);
+  drawItems(ctx, state.items.filter((item) => item.bonus), arena.itemRadius + 2, BONUS_ITEM_COLOR);
   for (const player of state.players) {
     drawPlayer(ctx, player, arena.playerRadius);
+  }
+
+  if (event?.params?.region) {
+    const me = state.players.find((player) => player.id === currentUserId);
+    drawBlackout(ctx, event.params.region, me ? { x: me.x, y: me.y } : null);
   }
 }
 
@@ -132,18 +235,37 @@ function draw(ctx, canvas, state, arena) {
  * `arena`. Lee el estado en cada frame, así que las actualizaciones por socket no
  * re-renderizan React.
  */
-export default function ArenaCanvas({ stateRef, arena }) {
+export default function ArenaCanvas({ stateRef, arena, scenario = null, currentUserId = null }) {
   const canvasRef = useRef(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
 
+    let layer = null;
+    const reactor = scenario ? parseScenarioMap(scenario.map).reactor : null;
+
+    function rebuildLayer() {
+      if (!scenario) {
+        layer = null;
+        return;
+      }
+
+      layer = document.createElement('canvas');
+      layer.width = canvas.width;
+      layer.height = canvas.height;
+      const layerCtx = layer.getContext('2d');
+      const scale = canvas.width / arena.width;
+      layerCtx.setTransform(scale, 0, 0, scale, 0, 0);
+      drawScenarioLayer(layerCtx, scenario, arena);
+    }
+
     function resize() {
       const ratio = window.devicePixelRatio || 1;
       const cssWidth = canvas.getBoundingClientRect().width;
       canvas.width = Math.max(1, Math.round(cssWidth * ratio));
       canvas.height = Math.round((canvas.width * arena.height) / arena.width);
+      rebuildLayer();
     }
 
     resize();
@@ -154,7 +276,7 @@ export default function ArenaCanvas({ stateRef, arena }) {
     function render() {
       const state = stateRef.current;
       if (state) {
-        draw(ctx, canvas, state, arena);
+        draw(ctx, canvas, state, arena, layer, scenario, currentUserId, reactor, performance.now());
       }
       frame = requestAnimationFrame(render);
     }
@@ -164,7 +286,7 @@ export default function ArenaCanvas({ stateRef, arena }) {
       cancelAnimationFrame(frame);
       observer.disconnect();
     };
-  }, [stateRef, arena]);
+  }, [stateRef, arena, scenario, currentUserId]);
 
   return (
     <canvas

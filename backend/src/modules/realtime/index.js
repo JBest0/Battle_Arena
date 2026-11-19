@@ -1,11 +1,17 @@
 const config = require('../../config');
 const { GAMEPLAY, ARENA } = require('../game/game.config');
 const { createRealtime } = require('./realtime.socket');
+const { createDefaultEventFactory } = require('../events/eventFactory');
 
 // Conecta el tiempo real con el resto del backend. Lo llama server.js.
 function startRealtime(server) {
   // Se cargan aquí para que las pruebas de createRealtime no necesiten la base de datos.
-  const { gameService, gameEvents, statsService } = require('../../container');
+  const {
+    gameService,
+    gameEvents,
+    statsService,
+    scenarioCatalog,
+  } = require('../../container');
   const { verifySocketToken } = require('../../shared/middleware/requireAuth');
   const {
     assertSocketUserVerified,
@@ -20,7 +26,14 @@ function startRealtime(server) {
     gameEvents,
     managerOptions: {
       arena: ARENA,
-      rules: GAMEPLAY,
+      rules: {
+        ...GAMEPLAY,
+        eventIntervalSeconds: config.eventIntervalSeconds,
+        eventDurationSeconds: config.eventDurationSeconds,
+      },
+      // Eventos especiales (US-22): un tipo nuevo se registra en modules/events/types.
+      eventFactory: createDefaultEventFactory(),
+      getScenario: (id) => scenarioCatalog.getCompiled(id),
       // Guarda puntajes y fecha de fin, y luego estadísticas, ranking y logros (US-16).
       persistResult: async (matchId, result) => {
         await gameService.finishMatch(matchId, result);

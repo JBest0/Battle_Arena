@@ -1,7 +1,7 @@
 import { describeConfig } from '../../game/gameConfig';
 
 // Partidas en espera a las que el jugador puede unirse desde la sala de juego.
-export default function OpenMatchesList({ matches, busyId, onJoin }) {
+export default function OpenMatchesList({ matches, busyId, onJoin, scenarioNames = {} }) {
   if (matches.length === 0) {
     return <p className="game-config-hint">No hay partidas abiertas. Crea una.</p>;
   }
@@ -19,6 +19,7 @@ export default function OpenMatchesList({ matches, busyId, onJoin }) {
                 {host ? `Partida de ${host.username}` : 'Partida'}
               </span>
               <span className="open-match-meta">
+                {scenarioNames[match.scenarioId] ? `${scenarioNames[match.scenarioId]} · ` : ''}
                 {describeConfig(match.config)} · {match.players.length}/
                 {match.config.maxPlayers}
               </span>

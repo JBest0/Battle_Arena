@@ -39,6 +39,7 @@ class InMemoryGameRepository {
       startedAt: null,
       endedAt: null,
       winnerId: null,
+      events: [],
       participants: [{ userId: creatorId, finalScore: 0 }],
     };
     this.matches.set(match.id, match);
@@ -70,10 +71,11 @@ class InMemoryGameRepository {
     this.matches.get(matchId).startedAt = startedAt;
   }
 
-  async finishMatch(matchId, { endedAt, winnerId, scores }) {
+  async finishMatch(matchId, { endedAt, winnerId, scores, events = [] }) {
     const match = this.matches.get(matchId);
     match.endedAt = endedAt;
     match.winnerId = winnerId;
+    match.events = events.map((event) => ({ matchId, ...event }));
     for (const participant of match.participants) {
       participant.finalScore = scores[participant.userId] ?? participant.finalScore;
     }
