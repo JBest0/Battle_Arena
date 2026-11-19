@@ -53,10 +53,9 @@ const ARENA = {
   itemRadius: 10,
   // Los escenarios son una cuadrícula de cellSize × cellSize (32 × 20 celdas).
   cellSize: 25,
-  // Radio con el que el jugador choca contra los muros. Debe cumplir dos cosas a la vez:
-  // medir más de media celda (así un hueco de 1 celda no deja pasar, y las puertas de 2
-  // celdas bloquean) y caber con holgura en un pasillo de 2 celdas sin trabarse.
-  collisionRadius: 8,
+  // Radio con el que el jugador choca contra los muros. Debe medir más de media celda
+  // para bloquear huecos de 1 celda y caber en un pasillo de 2 celdas.
+  collisionRadius: 18,
 };
 
 // Valor de scenarioId para pedir un escenario al azar al crear la partida.
