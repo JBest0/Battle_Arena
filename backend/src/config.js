@@ -1,5 +1,6 @@
 const path = require('path');
 const { z } = require('zod');
+const { EVENT_LIMITS } = require('./modules/game/game.config');
 
 require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 
@@ -16,6 +17,21 @@ const envSchema = z.object({
   SMTP_PASS: z.string().default(''),
   MAIL_FROM: z.string().min(1, 'MAIL_FROM es obligatorio'),
   UPLOADS_DIR: z.string().min(1, 'UPLOADS_DIR es obligatorio'),
+  // Carpeta con los archivos .json de escenarios (por defecto, src/scenarios).
+  SCENARIOS_DIR: z.string().default(path.resolve(__dirname, 'scenarios')),
+  // Eventos especiales: tiempo medio entre eventos y duración de cada uno (segundos).
+  EVENT_INTERVAL_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(EVENT_LIMITS.intervalSeconds.min)
+    .max(EVENT_LIMITS.intervalSeconds.max)
+    .default(EVENT_LIMITS.intervalSeconds.default),
+  EVENT_DURATION_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(EVENT_LIMITS.durationSeconds.min)
+    .max(EVENT_LIMITS.durationSeconds.max)
+    .default(EVENT_LIMITS.durationSeconds.default),
   GITHUB_CLIENT_ID: z.string().optional(),
   GITHUB_CLIENT_SECRET: z.string().optional(),
   OAUTH_REDIRECT_URI: z.string().url('OAUTH_REDIRECT_URI debe ser una URL válida').optional(),
@@ -46,6 +62,9 @@ module.exports = {
   smtpPass: env.SMTP_PASS,
   mailFrom: env.MAIL_FROM,
   uploadsDir: env.UPLOADS_DIR,
+  scenariosDir: env.SCENARIOS_DIR,
+  eventIntervalSeconds: env.EVENT_INTERVAL_SECONDS,
+  eventDurationSeconds: env.EVENT_DURATION_SECONDS,
   githubClientId: env.GITHUB_CLIENT_ID || '',
   githubClientSecret: env.GITHUB_CLIENT_SECRET || '',
   oauthRedirectUri: env.OAUTH_REDIRECT_URI || '',
