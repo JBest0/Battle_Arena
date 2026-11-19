@@ -18,6 +18,7 @@ import { useArenaSocket } from '../hooks/useArenaSocket';
 import { useEventAnnouncement } from '../hooks/useEventAnnouncement';
 import { isSoundEnabled, setSoundEnabled } from '../game/eventSound';
 import { useKeyboardInput } from '../hooks/useKeyboardInput';
+import { useSerialInput } from '../hooks/useSerialInput';
 
 function errorText(err) {
   return err.response ? getErrorMessage(err) : 'No se pudo conectar con el servidor';
@@ -34,7 +35,9 @@ function ArenaScreen({ match, arena, scenario, currentUserId }) {
     setSound(!soundEnabled);
   }
 
-  useKeyboardInput(sendInput, connection === 'connected' && status !== 'FINISHED');
+  const inputEnabled = connection === 'connected' && status !== 'FINISHED';
+  useKeyboardInput(sendInput, inputEnabled);
+  const serial = useSerialInput(sendInput, inputEnabled);
 
   return (
     <div className="arena-page">
@@ -47,6 +50,16 @@ function ArenaScreen({ match, arena, scenario, currentUserId }) {
           </p>
         </div>
         <div className="arena-toolbar-actions">
+          {serial.supported && (
+            <button
+              type="button"
+              className="button button-small"
+              onClick={serial.status === 'connected' ? serial.disconnect : serial.connect}
+              disabled={serial.status === 'connecting'}
+            >
+              {serial.status === 'connected' ? 'Control conectado ✓' : 'Conectar control'}
+            </button>
+          )}
           <Link className="button button-small" to="/lobby">
             {status === 'FINISHED' ? 'Volver a la sala de juego' : 'Salir'}
           </Link>
@@ -68,8 +81,20 @@ function ArenaScreen({ match, arena, scenario, currentUserId }) {
           {error}
         </p>
       )}
+      {serial.error && (
+        <p className="alert alert-warning" role="status">
+          {serial.error}
+        </p>
+      )}
+      {!serial.supported && (
+        <p className="alert alert-warning" role="status">
+          Para usar el control USB abre el juego en Chrome o Edge.
+        </p>
+      )}
       {connection === 'connected' && status === 'RUNNING' && (
-        <p className="arena-controls-hint">Muévete con W A S D o con las flechas.</p>
+        <p className="arena-controls-hint">
+          Muévete con el control USB, con W A S D o con las flechas.
+        </p>
       )}
 
       <div className="arena-layout">
