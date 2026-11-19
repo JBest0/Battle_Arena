@@ -24,6 +24,13 @@ const DEFAULT_GAME_CONFIG = {
   maxPlayers: GAME_LIMITS.maxPlayers.default,
 };
 
+// Eventos especiales (Anexo B del ERS): tiempo medio entre eventos y duración de cada uno,
+// en segundos. Se pueden cambiar con EVENT_INTERVAL_SECONDS y EVENT_DURATION_SECONDS.
+const EVENT_LIMITS = {
+  intervalSeconds: { min: 15, max: 180, default: 45 },
+  durationSeconds: { min: 5, max: 60, default: 15 },
+};
+
 // Reglas de la partida en curso (las usa el motor de tiempo real).
 const GAMEPLAY = {
   playerSpeed: 220, // unidades de arena por segundo
@@ -32,15 +39,28 @@ const GAMEPLAY = {
   tickRate: 30, // actualizaciones por segundo
   abandonSeconds: 30, // sin ningún jugador conectado: la partida se cierra
   maxMatchSeconds: 900, // tope de seguridad (sobre todo para el modo por puntos)
+  eventIntervalSeconds: EVENT_LIMITS.intervalSeconds.default, // tiempo medio entre eventos
+  eventDurationSeconds: EVENT_LIMITS.durationSeconds.default, // duración de cada evento
 };
 
 // Dimensiones lógicas de la arena (unidades de juego, no píxeles).
 const ARENA = {
   width: 800,
   height: 500,
-  playerRadius: 24,
+  // Radio con el que se dibuja el personaje (el anillo de color suma 4 más). Con 16, el
+  // personaje dibujado mide 40 y cabe con holgura en un pasillo de 2 celdas (50).
+  playerRadius: 8,
   itemRadius: 10,
+  // Los escenarios son una cuadrícula de cellSize × cellSize (32 × 20 celdas).
+  cellSize: 25,
+  // Radio con el que el jugador choca contra los muros. Debe cumplir dos cosas a la vez:
+  // medir más de media celda (así un hueco de 1 celda no deja pasar, y las puertas de 2
+  // celdas bloquean) y caber con holgura en un pasillo de 2 celdas sin trabarse.
+  collisionRadius: 8,
 };
+
+// Valor de scenarioId para pedir un escenario al azar al crear la partida.
+const SCENARIO_RANDOM = 'random';
 
 /**
  * Completa los valores faltantes con los de por defecto y deja en `null` el campo que
@@ -60,17 +80,21 @@ function normalizeConfig(input = {}) {
         ? input.targetPoints ?? DEFAULT_GAME_CONFIG.targetPoints
         : null,
     maxPlayers: input.maxPlayers ?? DEFAULT_GAME_CONFIG.maxPlayers,
+    // Escenario pedido (id del catálogo o "random"); lo resuelve GameService.
+    scenarioId: input.scenarioId,
   };
 }
 
 module.exports = {
   END_MODES,
   GAME_LIMITS,
+  EVENT_LIMITS,
   MIN_PLAYERS_TO_START,
   OPEN_MATCH_MAX_AGE_MINUTES,
   OPEN_MATCHES_LIMIT,
   DEFAULT_GAME_CONFIG,
   GAMEPLAY,
   ARENA,
+  SCENARIO_RANDOM,
   normalizeConfig,
 };

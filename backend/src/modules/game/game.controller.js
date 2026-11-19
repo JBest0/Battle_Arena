@@ -7,6 +7,16 @@ class GameController {
     return res.status(200).json(this.gameService.getOptions());
   }
 
+  async listScenarios(req, res) {
+    return res.status(200).json({ scenarios: this.gameService.listScenarios() });
+  }
+
+  async getScenario(req, res) {
+    const scenario = this.gameService.getScenario(req.params.id);
+
+    return res.status(200).json({ scenario });
+  }
+
   async createMatch(req, res) {
     const match = await this.gameService.createMatch(req.user.id, req.body);
 

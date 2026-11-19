@@ -6,11 +6,29 @@ import {
   getGameOptions,
   joinMatch,
   listOpenMatches,
+  listScenarios,
 } from '../api/game';
 import GameConfigForm from '../components/game/GameConfigForm';
 import OpenMatchesList from '../components/game/OpenMatchesList';
 
 const OPEN_MATCHES_INTERVAL_MS = 3000;
+const LAST_SCENARIO_KEY = 'battleArena.lastScenario';
+
+function readLastScenario() {
+  try {
+    return localStorage.getItem(LAST_SCENARIO_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function saveLastScenario(id) {
+  try {
+    localStorage.setItem(LAST_SCENARIO_KEY, id);
+  } catch {
+    // sin almacenamiento disponible: no pasa nada, solo no se recuerda
+  }
+}
 
 function errorText(err) {
   return err.response ? getErrorMessage(err) : 'No se pudo conectar con el servidor';
@@ -22,6 +40,7 @@ function errorText(err) {
 export default function LobbyPage() {
   const navigate = useNavigate();
   const [options, setOptions] = useState(null);
+  const [scenarios, setScenarios] = useState([]);
   const [loadError, setLoadError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -33,9 +52,12 @@ export default function LobbyPage() {
   useEffect(() => {
     let active = true;
 
-    getGameOptions()
-      .then((data) => {
-        if (active) setOptions(data);
+    Promise.all([getGameOptions(), listScenarios()])
+      .then(([data, catalog]) => {
+        if (active) {
+          setOptions(data);
+          setScenarios(catalog.scenarios);
+        }
       })
       .catch((err) => {
         if (active) setLoadError(errorText(err));
@@ -73,6 +95,7 @@ export default function LobbyPage() {
 
     try {
       const { match } = await createMatch(config);
+      if (config.scenarioId) saveLastScenario(config.scenarioId);
       navigate(`/arena?match=${match.id}`);
     } catch (err) {
       if (err.response?.status === 400) {
@@ -112,6 +135,7 @@ export default function LobbyPage() {
           matches={openMatches}
           busyId={joiningId}
           onJoin={handleJoin}
+          scenarioNames={Object.fromEntries(scenarios.map((s) => [s.id, s.name]))}
         />
       </section>
 
@@ -135,6 +159,8 @@ export default function LobbyPage() {
         {options && (
           <GameConfigForm
             options={options}
+            scenarios={scenarios}
+            initialScenarioId={readLastScenario()}
             submitting={submitting}
             serverErrors={fieldErrors}
             onSubmit={handleSubmit}

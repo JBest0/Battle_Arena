@@ -27,6 +27,7 @@ function toMatchView(match) {
       targetPoints: match.targetPoints,
       maxPlayers: match.maxPlayers,
     },
+    scenarioId: match.scenarioId ?? null,
     createdById: match.createdById,
     createdAt: match.createdAt,
     startedAt: match.startedAt,
@@ -50,9 +51,17 @@ class GameService {
    * @param {object} deps.gameRepository
    * @param {object} deps.unitOfWork    ejecuta un bloque dentro de una transacción
    * @param {object} deps.gameEvents    EventEmitter; emite `matchStarted` con la vista de la partida
+   * @param {object} [deps.scenarioCatalog]  catálogo de escenarios (ScenarioCatalog)
    * @param {() => Date} [deps.clock]
    */
-  constructor({ gameRepository, unitOfWork, gameEvents, clock = () => new Date() }) {
+  constructor({
+    gameRepository,
+    unitOfWork,
+    gameEvents,
+    scenarioCatalog = null,
+    clock = () => new Date(),
+  }) {
+    this.scenarioCatalog = scenarioCatalog;
     this.gameRepository = gameRepository;
     this.unitOfWork = unitOfWork;
     this.gameEvents = gameEvents;
@@ -69,8 +78,26 @@ class GameService {
     };
   }
 
+  // Escenarios del catálogo (definición completa, incluido el mapa).
+  listScenarios() {
+    return this.scenarioCatalog ? this.scenarioCatalog.list() : [];
+  }
+
+  getScenario(id) {
+    const scenario = this.scenarioCatalog?.get(id);
+
+    if (!scenario) {
+      throw new AppError(404, 'SCENARIO_NOT_FOUND', 'El escenario no existe');
+    }
+
+    return scenario;
+  }
+
   async createMatch(userId, input) {
     const config = normalizeConfig(input);
+    config.scenarioId = this.scenarioCatalog
+      ? this.scenarioCatalog.resolveId(config.scenarioId)
+      : null;
     const match = await this.gameRepository.createMatch(config, userId);
 
     return toMatchView(match);
@@ -191,9 +218,11 @@ class GameService {
    * Idempotente. Después hay que llamar a statsService.recordMatchResult(matchId).
    *
    * @param {string} matchId
-   * @param {{ scores: Record<string, number>, winnerIds: string[] }} result
+   * @param {{ scores: Record<string, number>, winnerIds: string[], events?: object[] }} result
+   *   `events`: eventos especiales ocurridos (ver EventScheduler.history); se guardan en la
+   *   misma transacción que el resultado
    */
-  async finishMatch(matchId, { scores, winnerIds }) {
+  async finishMatch(matchId, { scores, winnerIds, events = [] }) {
     return this.unitOfWork.run(async (tx) => {
       await this.gameRepository.lockMatch(matchId, tx);
       const match = await this.gameRepository.findMatchWithParticipants(
@@ -223,6 +252,7 @@ class GameService {
           endedAt: this.clock(),
           winnerId: winnerIds.length === 1 ? winnerIds[0] : null,
           scores,
+          events,
         },
         tx
       );

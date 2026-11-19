@@ -4,7 +4,11 @@ const { asyncHandler } = require('../../shared/asyncHandler');
 const { validate } = require('../../shared/middleware/validate');
 const { requireAuth } = require('../../shared/middleware/requireAuth');
 const { requireVerifiedEmail } = require('../../shared/middleware/requireVerifiedEmail');
-const { gameConfigSchema, matchIdParamsSchema } = require('./game.schemas');
+const {
+  gameConfigSchema,
+  matchIdParamsSchema,
+  scenarioIdParamsSchema,
+} = require('./game.schemas');
 
 const router = express.Router();
 
@@ -17,6 +21,22 @@ router.get(
   requireAuth,
   requireVerifiedEmail,
   asyncHandler(gameController.getOptions.bind(gameController))
+);
+
+// Catálogo de escenarios (con el mapa de cada uno) y un escenario por id.
+router.get(
+  '/scenarios',
+  requireAuth,
+  requireVerifiedEmail,
+  asyncHandler(gameController.listScenarios.bind(gameController))
+);
+
+router.get(
+  '/scenarios/:id',
+  requireAuth,
+  requireVerifiedEmail,
+  validate(scenarioIdParamsSchema, 'params'),
+  asyncHandler(gameController.getScenario.bind(gameController))
 );
 
 // Partidas en espera a las que el jugador se puede unir.

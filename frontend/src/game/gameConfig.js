@@ -56,6 +56,11 @@ export function toConfigPayload(values) {
     payload.targetPoints = Number(values.targetPoints);
   }
 
+  // Id del catálogo o "random"; si no hay catálogo, el servidor usa el de por defecto.
+  if (values.scenarioId) {
+    payload.scenarioId = values.scenarioId;
+  }
+
   return payload;
 }
 

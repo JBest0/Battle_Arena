@@ -16,6 +16,8 @@ const { StatsRepository } = require('./modules/stats/stats.repository');
 const { MatchRepository } = require('./modules/stats/match.repository');
 const { StatsService } = require('./modules/stats/stats.service');
 const { StatsController } = require('./modules/stats/stats.controller');
+const { loadScenarioCatalog } = require('./modules/scenarios/scenario.catalog');
+const { ARENA } = require('./modules/game/game.config');
 const { GameRepository } = require('./modules/game/game.repository');
 const { GameService } = require('./modules/game/game.service');
 const { GameController } = require('./modules/game/game.controller');
@@ -60,10 +62,16 @@ const statsService = new StatsService({
 
 // Eventos del juego (`matchStarted`): el módulo de tiempo real se suscribe aquí.
 const gameEvents = new EventEmitter();
+// Escenarios definidos como datos (archivos .json); uno inválido se rechaza y se registra.
+const scenarioCatalog = loadScenarioCatalog({
+  dir: config.scenariosDir,
+  arena: ARENA,
+});
 const gameService = new GameService({
   gameRepository,
   unitOfWork,
   gameEvents,
+  scenarioCatalog,
 });
 
 const authController = new AuthController({ authService });
@@ -90,6 +98,7 @@ module.exports = {
   statsService,
   gameService,
   gameEvents,
+  scenarioCatalog,
   authController,
   usersController,
   statsController,

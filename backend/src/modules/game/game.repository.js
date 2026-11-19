@@ -20,6 +20,7 @@ class GameRepository {
         durationSeconds: config.durationSeconds,
         targetPoints: config.targetPoints,
         maxPlayers: config.maxPlayers,
+        scenarioId: config.scenarioId ?? null,
         createdById: creatorId,
         participants: { create: { userId: creatorId } },
       },
@@ -58,8 +59,9 @@ class GameRepository {
     return tx.match.update({ where: { id: matchId }, data: { startedAt } });
   }
 
-  // Cierra la partida: fecha de fin, ganador (null si hay empate) y puntaje de cada jugador.
-  async finishMatch(matchId, { endedAt, winnerId, scores }, tx = this.db) {
+  // Cierra la partida: fecha de fin, ganador (null si hay empate), puntaje de cada jugador
+  // y los eventos especiales que ocurrieron.
+  async finishMatch(matchId, { endedAt, winnerId, scores, events = [] }, tx = this.db) {
     await tx.match.update({
       where: { id: matchId },
       data: { endedAt, winnerId },
@@ -69,6 +71,19 @@ class GameRepository {
       await tx.matchParticipant.update({
         where: { matchId_userId: { matchId, userId } },
         data: { finalScore },
+      });
+    }
+
+    if (events.length > 0) {
+      await tx.matchEvent.createMany({
+        data: events.map((event) => ({
+          matchId,
+          type: event.type,
+          startedAtSeconds: event.startedAt,
+          durationSeconds: event.durationSeconds,
+          endedAtSeconds: event.endedAt,
+          params: event.params ?? {},
+        })),
       });
     }
   }

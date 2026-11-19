@@ -141,10 +141,12 @@ model Match {
   targetPoints    Int?      @map("target_points")
   createdById     String?   @map("created_by_id") @db.Uuid
   createdAt       DateTime  @default(now()) @map("created_at")
+  scenarioId      String?   @map("scenario_id") @db.VarChar(50)
 
   winner       User?              @relation("MatchWinner", fields: [winnerId], references: [id], onDelete: SetNull)
   createdBy    User?              @relation("MatchCreator", fields: [createdById], references: [id], onDelete: SetNull)
   participants MatchParticipant[]
+  events       MatchEvent[]
 
   @@index([endedAt])
   @@map("matches")
@@ -163,4 +165,22 @@ model MatchParticipant {
   @@id([matchId, userId])
   @@index([userId])
   @@map("match_participants")
+}
+
+// Eventos especiales ocurridos en una partida (sobrecarga, lluvia de energía, apagón...).
+// Los tiempos son segundos desde que arrancó el juego (después de la cuenta regresiva).
+model MatchEvent {
+  id               String   @id @default(uuid()) @db.Uuid
+  matchId          String   @map("match_id") @db.Uuid
+  type             String   @db.VarChar(50)
+  startedAtSeconds Float    @map("started_at_seconds")
+  durationSeconds  Float    @map("duration_seconds")
+  endedAtSeconds   Float?   @map("ended_at_seconds")
+  params           Json?
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([matchId])
+  @@map("match_events")
 }

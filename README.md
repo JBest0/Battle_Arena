@@ -690,7 +690,7 @@ Todos exigen sesión y correo verificado (`requireAuth` + `requireVerifiedEmail`
 | --- | --- | --- |
 | GET | `/options` | `200 { endModes, limits, defaults, arena, minPlayersToStart }` |
 | GET | `/matches` | `200 { matches }`: partidas en espera de los últimos 30 minutos (máx. 20) |
-| POST | `/matches` | `201 { match }`; `400 VALIDATION_ERROR` con `fields` por campo |
+| POST | `/matches` | `201 { match }` (acepta `scenarioId`); `400 VALIDATION_ERROR` con `fields` por campo o `SCENARIO_NOT_FOUND` |
 | GET | `/matches/:id` | `200 { match }`; `404 MATCH_NOT_FOUND` |
 | POST | `/matches/:id/join` | `200 { match }`; idempotente. `409 MATCH_FULL` o `MATCH_ALREADY_STARTED` |
 | POST | `/matches/:id/start` | `200 { match }`. `403 NOT_MATCH_CREATOR`, `409 NOT_ENOUGH_PLAYERS` o `MATCH_ALREADY_STARTED` |
@@ -762,6 +762,126 @@ Ambas siguen dentro de `<VerifiedRoute>` (CA-03.4).
 - No hay "salir de la sala de espera" ni expulsar jugadores.
 - El control físico ESP32 (módulo de hardware) está pendiente.
 
+## Escenarios
+
+Cada escenario es un archivo `.json` en `backend/src/scenarios/` (o en la carpeta de la
+variable `SCENARIOS_DIR`). El servidor los lee al arrancar: para agregar uno basta copiar el
+archivo y reiniciar, sin tocar el código. Un archivo inválido se rechaza y se registra el
+error en la consola sin afectar a los demás (también se rechaza un `id` repetido). Todos los
+escenarios comparten las mismas reglas; cambian el mapa, la paleta y la música.
+
+Incluidos: laboratorio subterráneo, estación espacial, planta industrial y complejo militar
+futurista. Los cuatro son simétricos, así que ningún jugador empieza con ventaja.
+
+```json
+{
+  "id": "estacion-espacial",
+  "name": "Estación espacial",
+  "description": "Anillo de compuertas alrededor del reactor.",
+  "order": 2,
+  "palette": { "floor": "#0e0b2a", "grid": "#1c1650", "wall": "#5b4bd6", "wallTop": "#9d8cff",
+               "reactor": "#00e5ff", "terminal": "#ff5de0", "cell": "#ffe45e" },
+  "music": { "track": "sintetizador-orbital", "src": null, "volume": 0.4 },
+  "map": ["################################", "…20 filas de 32 caracteres…"]
+}
+```
+
+| Carácter del mapa | Significado |
+| --- | --- |
+| `#` | Muro (el borde del mapa debe ser todo de muros) |
+| `.` | Piso |
+| `R` | Reactor: un solo bloque rectangular de al menos 2 × 2; es sólido |
+| `1` `2` `3` `4` | Inicio de cada jugador (los cuatro, una vez cada uno) |
+| `T` | Terminal energética |
+| `C` | Posición donde aparece una celda de energía |
+
+- El mapa es una cuadrícula de 32 × 20 celdas de 25 × 25 unidades (la arena de 800 × 500).
+- La paleta exige `floor`, `grid`, `wall`, `wallTop`, `reactor`, `terminal` y `cell` en
+  formato `#RRGGBB`; se pueden agregar más colores.
+- `music.src` es `null` mientras no haya un archivo de audio con licencia documentada.
+- Al cargarlo se comprueba que sea jugable: los cuatro inicios, las terminales y las celdas
+  deben conectarse entre sí y con el reactor por pasillos de al menos 2 celdas de ancho (el
+  jugador choca con un radio de 16, así que por 1 celda no cabe).
+- El motor usa el mapa para chocar contra muros y reactor, sacar a cada jugador de su inicio y
+  poner los ítems en las celdas `C`. Sin escenario (partidas antiguas) la arena es un campo
+  abierto.
+
+Endpoints (sesión y correo verificado): `GET /api/game/scenarios` devuelve el catálogo con el
+mapa de cada uno; `GET /api/game/scenarios/:id` devuelve uno (`404 SCENARIO_NOT_FOUND`). Al
+crear una partida, `scenarioId` es un id del catálogo o `"random"`; si falta se usa el primero
+(el de menor `order`) y siempre se guarda un id concreto en `matches.scenario_id`. En la sala
+de juego el formulario recuerda el último escenario elegido.
+
+## Eventos especiales
+
+Cada cierto tiempo aleatorio ocurre un evento que cambia la partida por unos segundos (US-22).
+Se anuncia en el HUD con un banner, un borde de color en la arena y un sonido; mientras dura
+aparece en el panel con su cuenta atrás, y al terminar todo vuelve a la normalidad. Solo hay
+un evento a la vez y nunca sale el mismo tipo dos veces seguidas.
+
+| Tipo (`type`) | Qué hace |
+| --- | --- |
+| `reactor-overload` | Sobrecarga del reactor: las celdas de energía valen el doble (x2 puntos) |
+| `energy-rain` | Lluvia de energía: caen hasta 8 celdas extra (azules); las que nadie recoge se retiran al terminar |
+| `blackout` | Apagón: una mitad de la arena queda a oscuras y el jugador conserva una pequeña luz |
+| `alternate-route` | Ruta alternativa: se abren 2 huecos de 2 celdas en muros de 1 o 2 de grosor; al terminar se cierran, pero nunca encima de un jugador (esperan a que quede libre) |
+
+La ruta alternativa necesita un escenario con muros; en un campo abierto simplemente no sale.
+La invasión de guardianes (US-036) queda pendiente hasta que existan los guardianes en el motor.
+
+Parámetros (variables de entorno opcionales del backend, Anexo B del ERS):
+
+| Variable | Por defecto | Rango | Significado |
+| --- | --- | --- | --- |
+| `EVENT_INTERVAL_SECONDS` | 45 | 15 – 180 | Tiempo medio entre eventos (el real es de 0,5 a 1,5 veces este valor) |
+| `EVENT_DURATION_SECONDS` | 15 | 5 – 60 | Duración de cada evento |
+
+### Código (`backend/src/modules/events/`)
+
+- `specialEvent.js`: clase base con los metadatos del tipo (`type`, `label`, `description`,
+  `accent`, `weight`, `canStart`) y el ciclo de vida (`start`, `update`, `modify`, `end`, `params`).
+- `eventFactory.js`: **patrón Factory**. Registra los tipos por clase y crea el evento pedido.
+- `eventScheduler.js`: programa los eventos de una partida (espera, lanza, revierte), guarda
+  el historial y arma lo que ve el cliente. No conoce ningún tipo concreto.
+- `types/`: los cuatro tipos y `types/index.js` con la lista de los que conoce el juego.
+
+Para agregar un tipo nuevo no se toca el motor ni el programador: se crea el archivo en
+`types/` y se añade a la lista.
+
+```js
+const { SpecialEvent } = require('../specialEvent');
+
+class TripleEnergyEvent extends SpecialEvent {
+  modify(modifiers) {
+    modifiers.pointMultiplier *= 3; // se aplica mientras dura y se revierte solo
+  }
+}
+TripleEnergyEvent.type = 'triple-energy';
+TripleEnergyEvent.label = 'Energía triple';
+TripleEnergyEvent.description = 'Las celdas valen el triple.';
+TripleEnergyEvent.accent = '#ffd166'; // color del anuncio; el cliente no necesita cambios
+module.exports = { TripleEnergyEvent };
+```
+
+Lo que el motor ofrece a los eventos (`ArenaEngine`): `random` (inyectable, para pruebas con
+semilla), `arena`, `elapsed`, `spawnBonusItem()` / `removeBonusItems()` y los muros dinámicos
+`openWall(col, fila)` / `requestWallClose(celdas)` (cada partida tiene su copia de los muros,
+el escenario compartido no se modifica). Los eventos aportan al multiplicador de puntos con
+`modify(modifiers)`.
+
+En cada `arena:state` viajan `events` (el evento activo con `id`, `type`, `name`,
+`description`, `accent`, `duration`, `remaining` y `params`; `[]` si no hay) y `openWalls`
+(muros abiertos, como `[columna, fila]`); las celdas extra llevan `bonus: true`.
+
+Al terminar la partida, `result.events` se guarda en la tabla `match_events` (tipo, segundo en
+que empezó, duración, segundo en que terminó y `params` en JSON) dentro de la misma
+transacción que el resultado. Los segundos cuentan desde que arranca el juego, sin la cuenta
+regresiva.
+
+El sonido se sintetiza en el navegador (Web Audio): no hay archivos de audio ni licencias que
+documentar. El botón «Sonido» del panel lo silencia y se recuerda en `localStorage`. El
+apagón es solo visual: el servidor decide la región y el cliente la oscurece.
+
 ## Base de datos
 
 - PostgreSQL 16 + Prisma.
@@ -789,8 +909,9 @@ PostgreSQL con las migraciones aplicadas y usan una carpeta temporal para `UPLOA
 el job de CI levanta PostgreSQL y aplica las migraciones.
 
 Las del juego que **no** necesitan base de datos: `arenaEngine`, `matchRoomManager`,
-`realtime.socket` (socket.io real con `socket.io-client`), `game.config`, `game.start` y
-`game.finish`. Usan `tests/helpers/inMemoryGame.js`, un repositorio en memoria con la
+`realtime.socket` (socket.io real con `socket.io-client`), `game.config`, `game.start`,
+`game.finish` y las de eventos especiales (`events.factory`, `events.scheduler`,
+`arenaEngine.events`, `matchRoomManager.events` y `game.events.persist`). Usan `tests/helpers/inMemoryGame.js`, un repositorio en memoria con la
 misma interfaz que `GameRepository`.
 
 ## Desarrollo sin Docker

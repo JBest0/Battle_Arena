@@ -12,9 +12,22 @@ class MatchRoomManager {
    * @param {object} options.rules       GAMEPLAY (tickRate, abandonSeconds, maxMatchSeconds...)
    * @param {(matchId: string, event: string, payload: object) => void} options.emit
    * @param {(matchId: string, result: object) => Promise<void>} options.persistResult
+   * @param {(scenarioId: string) => object|undefined} [options.getScenario]  escenario compilado
+   * @param {import('../events/eventFactory').EventFactory} [options.eventFactory]  eventos
+   *   especiales; sin ella la partida no tiene eventos
    * @param {{error: Function}} [options.logger]
    */
-  constructor({ arena, rules, emit, persistResult, logger = console }) {
+  constructor({
+    arena,
+    rules,
+    emit,
+    persistResult,
+    getScenario,
+    eventFactory = null,
+    logger = console,
+  }) {
+    this.getScenario = getScenario;
+    this.eventFactory = eventFactory;
     this.arena = arena;
     this.rules = rules;
     this.emit = emit;
@@ -36,6 +49,8 @@ class MatchRoomManager {
       arena: this.arena,
       rules: this.rules,
       players: match.players,
+      scenario: match.scenarioId ? this.getScenario?.(match.scenarioId) || null : null,
+      eventFactory: this.eventFactory,
     });
     const room = { engine, connections: 0, idle: 0, last: Date.now(), timer: null };
 
