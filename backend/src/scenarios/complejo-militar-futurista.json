@@ -10,12 +10,151 @@
     "wallTop": "#5f8f84",
     "reactor": "#ff3b5c",
     "terminal": "#39ff88",
-    "cell": "#f2ff59"
+    "cell": "#f2ff59",
+    "trap": "#ff7b00",
+    "riskZone": "#ff2e63",
+    "barrier": "#ffd166",
+    "door": "#4cc9f0"
   },
   "music": {
     "track": "pulso-tactico",
     "src": null,
     "volume": 0.4
+  },
+  "obstacles": {
+    "barriers": [],
+    "doors": [
+      {
+        "id": "compuerta-1",
+        "col": 14,
+        "row": 5,
+        "cols": 4,
+        "rows": 2,
+        "closedSeconds": 4,
+        "openSeconds": 6,
+        "offsetSeconds": 0
+      },
+      {
+        "id": "compuerta-2",
+        "col": 14,
+        "row": 13,
+        "cols": 4,
+        "rows": 2,
+        "closedSeconds": 4,
+        "openSeconds": 6,
+        "offsetSeconds": 5
+      }
+    ],
+    "corridors": [
+      {
+        "id": "pasillo-blindado-1",
+        "col": 12,
+        "row": 9,
+        "cols": 2,
+        "rows": 2,
+        "closedSeconds": 5,
+        "minOpenSeconds": 8,
+        "maxOpenSeconds": 16
+      },
+      {
+        "id": "pasillo-blindado-2",
+        "col": 18,
+        "row": 9,
+        "cols": 2,
+        "rows": 2,
+        "closedSeconds": 5,
+        "minOpenSeconds": 8,
+        "maxOpenSeconds": 16
+      }
+    ]
+  },
+  "traps": [
+    {
+      "id": "mina-1",
+      "col": 6,
+      "row": 5,
+      "cols": 3,
+      "rows": 2,
+      "slowFactor": 0.4,
+      "durationSeconds": 3
+    },
+    {
+      "id": "mina-2",
+      "col": 23,
+      "row": 5,
+      "cols": 3,
+      "rows": 2,
+      "slowFactor": 0.4,
+      "durationSeconds": 3
+    },
+    {
+      "id": "mina-3",
+      "col": 6,
+      "row": 13,
+      "cols": 3,
+      "rows": 2,
+      "slowFactor": 0.4,
+      "durationSeconds": 3
+    },
+    {
+      "id": "mina-4",
+      "col": 23,
+      "row": 13,
+      "cols": 3,
+      "rows": 2,
+      "slowFactor": 0.4,
+      "durationSeconds": 3
+    }
+  ],
+  "riskZones": [
+    {
+      "id": "flanco-reactor-1",
+      "col": 10,
+      "row": 7,
+      "cols": 3,
+      "rows": 6,
+      "multiplier": 3,
+      "exposure": 2
+    },
+    {
+      "id": "flanco-reactor-2",
+      "col": 19,
+      "row": 7,
+      "cols": 3,
+      "rows": 6,
+      "multiplier": 3,
+      "exposure": 2
+    }
+  ],
+  "randomWalls": {
+    "maxActive": 3,
+    "size": [2, 1],
+    "zones": [
+      {
+        "col": 11,
+        "row": 5,
+        "cols": 3,
+        "rows": 2
+      },
+      {
+        "col": 11,
+        "row": 13,
+        "cols": 3,
+        "rows": 2
+      },
+      {
+        "col": 18,
+        "row": 5,
+        "cols": 3,
+        "rows": 2
+      },
+      {
+        "col": 18,
+        "row": 13,
+        "cols": 3,
+        "rows": 2
+      }
+    ]
   },
   "map": [
     "################################",

@@ -1,6 +1,6 @@
 const path = require('path');
 const { z } = require('zod');
-const { EVENT_LIMITS } = require('./modules/game/game.config');
+const { EVENT_LIMITS, RANDOM_WALL_LIMITS } = require('./modules/game/game.config');
 
 require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 
@@ -32,6 +32,13 @@ const envSchema = z.object({
     .min(EVENT_LIMITS.durationSeconds.min)
     .max(EVENT_LIMITS.durationSeconds.max)
     .default(EVENT_LIMITS.durationSeconds.default),
+  // Paredes aleatorias: segundos entre un cambio y el siguiente.
+  RANDOM_WALL_INTERVAL_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(RANDOM_WALL_LIMITS.intervalSeconds.min)
+    .max(RANDOM_WALL_LIMITS.intervalSeconds.max)
+    .default(RANDOM_WALL_LIMITS.intervalSeconds.default),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -62,5 +69,6 @@ module.exports = {
   scenariosDir: env.SCENARIOS_DIR,
   eventIntervalSeconds: env.EVENT_INTERVAL_SECONDS,
   eventDurationSeconds: env.EVENT_DURATION_SECONDS,
+  randomWallIntervalSeconds: env.RANDOM_WALL_INTERVAL_SECONDS,
   nodeEnv: process.env.NODE_ENV || 'development',
 };

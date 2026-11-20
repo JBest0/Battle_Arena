@@ -31,6 +31,10 @@ const EVENT_LIMITS = {
   durationSeconds: { min: 5, max: 60, default: 15 },
 };
 
+// Paredes aleatorias (Anexo B): segundos entre cambios. Se puede cambiar con
+// RANDOM_WALL_INTERVAL_SECONDS.
+const RANDOM_WALL_LIMITS = { intervalSeconds: { min: 5, max: 60, default: 10 } };
+
 // Reglas de la partida en curso (las usa el motor de tiempo real).
 const GAMEPLAY = {
   playerSpeed: 220, // unidades de arena por segundo
@@ -41,6 +45,7 @@ const GAMEPLAY = {
   maxMatchSeconds: 900, // tope de seguridad (sobre todo para el modo por puntos)
   eventIntervalSeconds: EVENT_LIMITS.intervalSeconds.default, // tiempo medio entre eventos
   eventDurationSeconds: EVENT_LIMITS.durationSeconds.default, // duración de cada evento
+  randomWallIntervalSeconds: RANDOM_WALL_LIMITS.intervalSeconds.default, // paredes aleatorias
 };
 
 // Dimensiones lógicas de la arena (unidades de juego, no píxeles).
@@ -89,6 +94,7 @@ module.exports = {
   END_MODES,
   GAME_LIMITS,
   EVENT_LIMITS,
+  RANDOM_WALL_LIMITS,
   MIN_PLAYERS_TO_START,
   OPEN_MATCH_MAX_AGE_MINUTES,
   OPEN_MATCHES_LIMIT,

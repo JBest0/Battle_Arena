@@ -10,12 +10,158 @@
     "wallTop": "#7aa3ad",
     "reactor": "#3ad4ff",
     "terminal": "#7bffb0",
-    "cell": "#ffd166"
+    "cell": "#ffd166",
+    "trap": "#8aff3d",
+    "riskZone": "#ff4d6d",
+    "barrier": "#ffd166",
+    "door": "#4cc9f0"
   },
   "music": {
     "track": "ambient-laboratorio",
     "src": null,
     "volume": 0.4
+  },
+  "obstacles": {
+    "barriers": [],
+    "doors": [
+      {
+        "id": "puerta-reactor-1",
+        "col": 12,
+        "row": 9,
+        "cols": 2,
+        "rows": 2,
+        "closedSeconds": 4,
+        "openSeconds": 6,
+        "offsetSeconds": 0
+      },
+      {
+        "id": "puerta-reactor-2",
+        "col": 18,
+        "row": 9,
+        "cols": 2,
+        "rows": 2,
+        "closedSeconds": 4,
+        "openSeconds": 6,
+        "offsetSeconds": 5
+      },
+      {
+        "id": "puerta-seguridad-1",
+        "col": 3,
+        "row": 8,
+        "cols": 2,
+        "rows": 2,
+        "closedSeconds": 4,
+        "openSeconds": 6,
+        "offsetSeconds": 2
+      },
+      {
+        "id": "puerta-seguridad-2",
+        "col": 27,
+        "row": 8,
+        "cols": 2,
+        "rows": 2,
+        "closedSeconds": 4,
+        "openSeconds": 6,
+        "offsetSeconds": 7
+      },
+      {
+        "id": "puerta-seguridad-3",
+        "col": 3,
+        "row": 10,
+        "cols": 2,
+        "rows": 2,
+        "closedSeconds": 4,
+        "openSeconds": 6,
+        "offsetSeconds": 4
+      },
+      {
+        "id": "puerta-seguridad-4",
+        "col": 27,
+        "row": 10,
+        "cols": 2,
+        "rows": 2,
+        "closedSeconds": 4,
+        "openSeconds": 6,
+        "offsetSeconds": 9
+      }
+    ],
+    "corridors": []
+  },
+  "traps": [
+    {
+      "id": "derrame-acido-1",
+      "col": 4,
+      "row": 9,
+      "cols": 3,
+      "rows": 2,
+      "slowFactor": 0.45,
+      "durationSeconds": 2.5
+    },
+    {
+      "id": "derrame-acido-2",
+      "col": 25,
+      "row": 9,
+      "cols": 3,
+      "rows": 2,
+      "slowFactor": 0.45,
+      "durationSeconds": 2.5
+    }
+  ],
+  "riskZones": [
+    {
+      "id": "sala-terminal-1",
+      "col": 7,
+      "row": 1,
+      "cols": 4,
+      "rows": 2,
+      "multiplier": 2,
+      "exposure": 2
+    },
+    {
+      "id": "sala-terminal-2",
+      "col": 21,
+      "row": 1,
+      "cols": 4,
+      "rows": 2,
+      "multiplier": 2,
+      "exposure": 2
+    },
+    {
+      "id": "sala-terminal-3",
+      "col": 7,
+      "row": 17,
+      "cols": 4,
+      "rows": 2,
+      "multiplier": 2,
+      "exposure": 2
+    },
+    {
+      "id": "sala-terminal-4",
+      "col": 21,
+      "row": 17,
+      "cols": 4,
+      "rows": 2,
+      "multiplier": 2,
+      "exposure": 2
+    }
+  ],
+  "randomWalls": {
+    "maxActive": 4,
+    "size": [2, 2],
+    "zones": [
+      {
+        "col": 12,
+        "row": 3,
+        "cols": 8,
+        "rows": 3
+      },
+      {
+        "col": 12,
+        "row": 14,
+        "cols": 8,
+        "rows": 3
+      }
+    ]
   },
   "map": [
     "################################",

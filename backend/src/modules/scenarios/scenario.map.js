@@ -189,6 +189,19 @@ function compileScenario(definition, arena) {
     y: row * size + size / 2,
   });
   const rect = reactorRect(parsed.reactor);
+  const toRect = (item) => ({
+    ...item,
+    x: item.col * size,
+    y: item.row * size,
+    width: item.cols * size,
+    height: item.rows * size,
+  });
+  const obstacles = definition.obstacles || {};
+  const special = [
+    ...DIGITS.map((digit) => parsed.spawns[digit][0]),
+    ...parsed.terminals,
+    ...parsed.cells,
+  ];
 
   return {
     id: definition.id,
@@ -208,7 +221,27 @@ function compileScenario(definition, arena) {
     spawns: DIGITS.map((digit) => spawnPoint(parsed, digit, size)),
     terminals: parsed.terminals.map((t, i) => ({ id: `terminal-${i + 1}`, ...center(t) })),
     cells: parsed.cells.map(center),
+    // Obstáculos dinámicos, trampas y sectores de riesgo (secciones opcionales del escenario).
+    dynamic: {
+      barriers: obstacles.barriers || [],
+      doors: obstacles.doors || [],
+      corridors: obstacles.corridors || [],
+      randomWalls: definition.randomWalls || null,
+    },
+    traps: (definition.traps || []).map(toRect),
+    riskZones: (definition.riskZones || []).map(toRect),
+    // Celdas que ningún obstáculo puede ocupar (inicios, terminales y celdas de energía).
+    reserved: new Set(special.map(({ col, row }) => `${col},${row}`)),
+    // Puntos que siempre deben seguir conectados con el reactor (ver scenario.reachability).
+    targets: special.map(({ col, row }) => ({ col, row })),
   };
 }
 
-module.exports = { parseMap, validateMap, compileScenario };
+module.exports = {
+  parseMap,
+  validateMap,
+  compileScenario,
+  walkableAnchors,
+  anchorsCovering,
+  floodFill,
+};

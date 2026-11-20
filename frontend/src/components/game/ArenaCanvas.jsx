@@ -1,5 +1,10 @@
 import { useEffect, useRef } from 'react';
-import { drawScenarioLayer, parseScenarioMap, scenarioPalette } from '../../game/scenarioRender';
+import {
+  drawObstacles,
+  drawScenarioLayer,
+  parseScenarioMap,
+  scenarioPalette,
+} from '../../game/scenarioRender';
 
 const TAU = Math.PI * 2;
 // Luz que conserva el jugador local dentro de la zona en apagón (unidades de arena).
@@ -150,6 +155,35 @@ function drawBlackout(ctx, region, light) {
   ctx.restore();
 }
 
+// Jugador ralentizado por una trampa: anillo discontinuo que gira, en el color de las trampas.
+function drawSlowRing(ctx, player, radius, color, time) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.setLineDash([7, 6]);
+  ctx.lineDashOffset = -time / 60;
+  ctx.beginPath();
+  ctx.arc(player.x, player.y, radius + 9, 0, TAU);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Jugador dentro de un sector de riesgo: etiqueta con el multiplicador que está ganando.
+function drawRiskBadge(ctx, player, radius, color) {
+  const x = player.x + radius + 4;
+  const y = player.y - radius - 4;
+
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x, y, 11, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '700 11px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(`x${player.risk}`, x, y + 0.5);
+}
+
 function drawPlayer(ctx, player, radius) {
   const { x, y } = player;
 
@@ -195,7 +229,7 @@ function drawPlayer(ctx, player, radius) {
   ctx.fillText(label, x, labelY);
 }
 
-function draw(ctx, canvas, state, arena, layer, scenario, currentUserId, reactor, time) {
+function draw(ctx, canvas, state, arena, layer, scenario, currentUserId, reactor, time, appear) {
   const scale = canvas.width / arena.width;
   const palette = scenarioPalette(scenario);
   const event = state.events && state.events.length > 0 ? state.events[0] : null;
@@ -213,6 +247,9 @@ function draw(ctx, canvas, state, arena, layer, scenario, currentUserId, reactor
   if (state.openWalls && state.openWalls.length > 0) {
     drawOpenWalls(ctx, state.openWalls, arena, palette, accent);
   }
+  if (state.obstacles && state.obstacles.length > 0) {
+    drawObstacles(ctx, state.obstacles, arena.cellSize, palette, time, appear);
+  }
   if (event?.type === 'reactor-overload' && reactor) {
     drawReactorPulse(ctx, reactor, arena.cellSize, accent, time);
   }
@@ -221,7 +258,9 @@ function draw(ctx, canvas, state, arena, layer, scenario, currentUserId, reactor
   drawItems(ctx, state.items.filter((item) => !item.bonus), arena.itemRadius, palette.cell);
   drawItems(ctx, state.items.filter((item) => item.bonus), arena.itemRadius + 2, BONUS_ITEM_COLOR);
   for (const player of state.players) {
+    if (player.slow > 0) drawSlowRing(ctx, player, arena.playerRadius, palette.trap, time);
     drawPlayer(ctx, player, arena.playerRadius);
+    if (player.risk > 1) drawRiskBadge(ctx, player, arena.playerRadius, palette.riskZone);
   }
 
   if (event?.params?.region) {
@@ -244,6 +283,13 @@ export default function ArenaCanvas({ stateRef, arena, scenario = null, currentU
 
     let layer = null;
     const reactor = scenario ? parseScenarioMap(scenario.map).reactor : null;
+    // Las paredes nuevas aparecen con un fundido: se anota cuándo se vio cada obstáculo.
+    const firstSeen = new Map();
+    const appear = (id) => {
+      if (!firstSeen.has(id)) firstSeen.set(id, performance.now());
+
+      return Math.min(1, (performance.now() - firstSeen.get(id)) / 400);
+    };
 
     function rebuildLayer() {
       if (!scenario) {
@@ -276,7 +322,7 @@ export default function ArenaCanvas({ stateRef, arena, scenario = null, currentU
     function render() {
       const state = stateRef.current;
       if (state) {
-        draw(ctx, canvas, state, arena, layer, scenario, currentUserId, reactor, performance.now());
+        draw(ctx, canvas, state, arena, layer, scenario, currentUserId, reactor, performance.now(), appear);
       }
       frame = requestAnimationFrame(render);
     }

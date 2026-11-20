@@ -812,6 +812,73 @@ crear una partida, `scenarioId` es un id del catálogo o `"random"`; si falta se
 (el de menor `order`) y siempre se guarda un id concreto en `matches.scenario_id`. En la sala
 de juego el formulario recuerda el último escenario elegido.
 
+### Obstáculos, trampas y sectores de riesgo (US-20)
+
+Además del mapa, un escenario puede traer estas secciones opcionales (en celdas; `col`/`row`
+es la esquina superior izquierda). Los cuatro escenarios incluidos las usan.
+
+```json
+"obstacles": {
+  "barriers":  [{ "id": "cinta-1", "cols": 1, "rows": 2, "route": [[4, 4], [7, 4], [10, 4]],
+                  "pattern": "pingpong", "periodSeconds": 2.5 }],
+  "doors":     [{ "id": "compuerta-1", "col": 14, "row": 5, "cols": 4, "rows": 2,
+                  "closedSeconds": 4, "openSeconds": 6, "offsetSeconds": 0 }],
+  "corridors": [{ "id": "esclusa-1", "col": 10, "row": 8, "cols": 4, "rows": 4,
+                  "closedSeconds": 5, "minOpenSeconds": 8, "maxOpenSeconds": 16 }]
+},
+"traps":       [{ "id": "aceite-1", "col": 9, "row": 7, "cols": 3, "rows": 2,
+                  "slowFactor": 0.45, "durationSeconds": 2.5 }],
+"riskZones":   [{ "id": "flanco-1", "col": 10, "row": 7, "cols": 3, "rows": 6,
+                  "multiplier": 3, "exposure": 2 }],
+"randomWalls": { "maxActive": 3, "size": [2, 1], "zones": [{ "col": 11, "row": 5, "cols": 3, "rows": 2 }] }
+```
+
+| Elemento | Qué hace |
+| --- | --- |
+| Barrera móvil (`barriers`) | Un bloque de `cols` × `rows` que salta por su `route` cada `periodSeconds` (`pingpong` = ida y vuelta, `loop` = en círculo). Bloquea el paso en la posición que ocupa y parpadea antes de moverse |
+| Puerta (`doors`) | Se cierra `closedSeconds` y se abre `openSeconds`, en ciclo; `offsetSeconds` desfasa el ciclo. Parpadea en rojo antes de cerrarse |
+| Corredor (`corridors`) | Permanece abierto un tiempo al azar entre `minOpenSeconds` y `maxOpenSeconds`, se cierra `closedSeconds` y se reabre |
+| Paredes aleatorias (`randomWalls`) | Cada intervalo desaparece o aparece una pared de `size` dentro de las `zones`, hasta `maxActive` a la vez |
+| Trampa (`traps`) | Al pisarla, la velocidad baja a `slowFactor` durante `durationSeconds` (se renueva mientras siga encima); el jugador se ve con un anillo discontinuo |
+| Sector de riesgo (`riskZones`) | Mientras el jugador está dentro, lo que recoge vale `multiplier` veces más (entero 2–5; se suma al x2 de la sobrecarga). `exposure` es el alcance de captura que usarán los guardianes |
+
+Reglas que se cumplen siempre:
+
+- **Nunca se cierran todas las rutas.** Antes de que un obstáculo se vuelva sólido, el motor
+  comprueba (con la misma regla de pasillos de 2 celdas con la que se valida el mapa) que el
+  reactor, las terminales, las celdas, los inicios y cada jugador siguen conectados. Si no, el
+  obstáculo espera: una puerta se queda abierta, una barrera no se mueve, una pared no cae.
+- **Nunca atrapan a nadie.** Nada se vuelve sólido sobre un jugador (el motor espera a que
+  salga) y una pared nueva se coloca en otra celda si la elegida está ocupada. Las celdas de
+  energía que quedan dentro se retiran y se reponen.
+- **Nadie los atraviesa.** Un obstáculo cerrado ocupa celdas sólidas del motor, las mismas que
+  usan los jugadores y, más adelante, los guardianes.
+- **Semilla.** Corredores y paredes usan un generador propio con semilla (`obstacleSeed` del
+  motor, por defecto sale de `random`): con la misma semilla la secuencia se repite, lo que
+  permite probarlos de forma determinista. Cada obstáculo tiene su propia secuencia.
+- **Cada partida tiene su copia de los muros**; el escenario compartido no se modifica.
+
+Al cargar el archivo se valida la geometría (`scenario.extras.js`): barreras, puertas,
+corredores y zonas de paredes solo sobre piso libre (sin inicios, terminales ni celdas de
+energía), sin traslapes entre ellos y con ids únicos; las trampas no pueden cubrir un inicio
+y ni trampas ni sectores pueden tocar muros o el reactor. Un escenario que no cumpla se
+rechaza y se registra, igual que uno con el mapa inválido. Conviene comprobar que cada
+obstáculo pueda cerrarse sin cortar rutas (si es la única ruta, nunca operaría): hay una
+prueba (`scenarios.extras.test.js`) que lo exige para los escenarios incluidos.
+
+Parámetro del Anexo B (variable de entorno opcional del backend):
+
+| Variable | Por defecto | Rango | Significado |
+| --- | --- | --- | --- |
+| `RANDOM_WALL_INTERVAL_SECONDS` | 10 | 5 – 60 | Segundos entre un cambio de paredes aleatorias y el siguiente |
+
+En cada `arena:state` viajan `obstacles` (`{ id, kind, col, row, cols, rows, closed, warning }`
+con `kind` = `barrier`, `door`, `corridor` o `wall`) y, por jugador, `slow` (segundos de
+ralentización que le quedan, 0 si no tiene) y `risk` (multiplicador del sector donde está, 1 si
+no está en uno). Código: `backend/src/modules/obstacles/` (un archivo por tipo y
+`obstacleSystem.js`), `realtime/hazards.js` (trampas y sectores) y
+`scenarios/scenario.reachability.js` (la comprobación de rutas).
+
 ## Eventos especiales
 
 Cada cierto tiempo aleatorio ocurre un evento que cambia la partida por unos segundos (US-22).
@@ -910,8 +977,10 @@ el job de CI levanta PostgreSQL y aplica las migraciones.
 
 Las del juego que **no** necesitan base de datos: `arenaEngine`, `matchRoomManager`,
 `realtime.socket` (socket.io real con `socket.io-client`), `game.config`, `game.start`,
-`game.finish` y las de eventos especiales (`events.factory`, `events.scheduler`,
-`arenaEngine.events`, `matchRoomManager.events` y `game.events.persist`). Usan `tests/helpers/inMemoryGame.js`, un repositorio en memoria con la
+`game.finish`, las de eventos especiales (`events.factory`, `events.scheduler`,
+`arenaEngine.events`, `matchRoomManager.events` y `game.events.persist`) y las de obstáculos
+(`obstacles.engine`, `hazards.engine`, `obstacles.scenarios.sim`, `scenarios.extras`,
+`scenario.reachability` y `seededRandom`). Usan `tests/helpers/inMemoryGame.js`, un repositorio en memoria con la
 misma interfaz que `GameRepository`.
 
 ## Desarrollo sin Docker
