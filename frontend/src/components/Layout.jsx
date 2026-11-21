@@ -42,10 +42,13 @@ export default function Layout() {
 
           {status === 'anonymous' && (
             <>
+              <Link to="/test">Pruebas</Link>
               <Link to="/login">Iniciar sesión</Link>
               <Link to="/register">Crear cuenta</Link>
             </>
           )}
+
+          {user && <Link to="/test">Pruebas</Link>}
         </nav>
       </header>
       <main className="app-main">

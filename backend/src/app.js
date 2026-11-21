@@ -11,6 +11,7 @@ const { authRouter } = require('./modules/auth/auth.routes');
 const { usersRouter, avatarsRouter } = require('./modules/users/users.routes');
 const { rankingRouter } = require('./modules/stats/stats.routes');
 const { gameRouter } = require('./modules/game/game.routes');
+const { matchesRouter } = require('./modules/matches/matches.routes');
 
 const app = express();
 
@@ -44,6 +45,7 @@ app.use('/api/users', usersRouter);
 app.use('/api/avatars', avatarsRouter);
 app.use('/api/ranking', rankingRouter);
 app.use('/api/game', gameRouter);
+app.use('/api/matches', matchesRouter);
 
 app.use(notFound);
 app.use(errorHandler);

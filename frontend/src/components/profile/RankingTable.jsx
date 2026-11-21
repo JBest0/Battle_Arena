@@ -6,6 +6,7 @@ export default function RankingTable({
   highlightUserId,
   separatedUserId,
   emptyMessage = 'Todavía no hay jugadores en el ranking.',
+  metricLabel = 'Puntos',
 }) {
   if (!items || items.length === 0) {
     return <p className="empty-state">{emptyMessage}</p>;
@@ -20,7 +21,7 @@ export default function RankingTable({
             <th scope="col">Jugador</th>
             <th scope="col">Partidas</th>
             <th scope="col">Victorias</th>
-            <th scope="col">Puntos</th>
+            <th scope="col">{metricLabel}</th>
           </tr>
         </thead>
         <tbody>

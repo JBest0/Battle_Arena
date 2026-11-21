@@ -63,12 +63,16 @@ class UserRepository {
     return avatar.id;
   }
 
-  createWithStats({ username, email, passwordHash, avatarId }, tx = this.db) {
+  createWithStats(
+    { username, email, passwordHash, emailVerified = false, avatarId },
+    tx = this.db
+  ) {
     return tx.user.create({
       data: {
         username,
         email,
         passwordHash,
+        emailVerified,
         avatarId,
         stats: { create: {} },
       },

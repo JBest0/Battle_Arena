@@ -31,6 +31,36 @@ El backend aplica las migraciones y ejecuta el seed automáticamente al arrancar
 Para detener todo: `docker compose down`. Para borrar también los datos:
 `docker compose down -v`.
 
+### Despliegue sencillo en red local
+
+Para permitir que otros equipos de la misma red jueguen contra el equipo que ejecuta
+Docker, el anfitrión puede ejecutar:
+
+```bash
+node deploy.js lan
+```
+
+El script detecta la IP LAN, crea `backend/.env` desde `.env.example` si todavía no
+existe, configura `FRONTEND_URL`, `CORS_ORIGIN`, el callback de OAuth, Mailpit y un
+`JWT_SECRET` aleatorio, y ejecuta `docker compose up -d --build`. No requiere configurar
+OAuth para jugar con usuario y contraseña.
+
+Si la detección selecciona una interfaz incorrecta, la IP se puede indicar explícitamente:
+
+```bash
+node deploy.js lan 192.168.1.50
+```
+
+Después del despliegue, los demás jugadores abren en su navegador la URL que imprime el
+script, por ejemplo `http://192.168.1.50:5173`. El equipo anfitrión debe permitir el
+puerto TCP `5173` en el firewall y todos los equipos deben estar en la misma red. El
+puerto del backend no necesita abrirse para los jugadores porque nginx reenvía `/api` y
+`/socket.io` dentro del frontend.
+
+El modo anterior `phone` se conserva como alias compatible para configuraciones que ya
+utilizan `backend/.env.phone`; el modo `lan` es el flujo recomendado para una instalación
+nueva.
+
 ### Usuarios de prueba
 
 | Usuario | Correo | Contraseña | Avatar |
@@ -56,8 +86,9 @@ backend/
     container.js   composición e inyección de dependencias
     config.js      variables de entorno validadas con zod
     shared/        AppError, asyncHandler y middlewares compartidos
-    infrastructure/prisma, correo, archivos y tokens
-    modules/       auth, users, game, realtime, hardware
+    infrastructure/ Prisma, correo, archivos, JWT, tokens y transacciones
+    modules/       auth, users, stats, game, matches, realtime,
+                   scenarios y events
   tests/           Jest + Supertest
 frontend/          React + Vite (registro US-01 incluido)
 firmware/          README del control ESP32
@@ -65,15 +96,133 @@ firmware/          README del control ESP32
 
 ### Arquitectura por capas
 
-El flujo es **rutas → controlador → servicio → repositorio**:
+Battle Arena utiliza una arquitectura modular por capas, con separación entre la entrega
+HTTP/WebSocket, la lógica de negocio y la infraestructura. El flujo HTTP principal es:
 
-- Los controladores no usan Prisma; solo orquestan servicios.
-- Los servicios reciben sus dependencias por constructor.
-- Los repositorios son las únicas clases que importan `infrastructure/prisma.js`.
-- `container.js` instancia y conecta todo.
+```text
+Cliente
+  │
+  ├─ HTTP/JSON ──▶ Router ──▶ Middleware ──▶ Controlador
+  │                                            │
+  │                                            ▼
+  │                                         Servicio
+  │                                            │
+  │                                            ▼
+  │                                        Repositorio
+  │                                            │
+  │                                            ▼
+  │                                      Prisma/PostgreSQL
+  │
+  └─ WebSocket ─▶ Socket.IO ─▶ MatchRoomManager ─▶ ArenaEngine
+```
 
-Para agregar un módulo: crea repositorio, servicio, controlador y rutas, instancia todo
-en `container.js` y monta el router en `app.js`.
+#### Capas y responsabilidades
+
+- **Presentación y transporte.** `app.js` configura Express, CORS, JSON, archivos
+  estáticos, rutas y middleware de errores. `server.js` crea el servidor HTTP, inicia
+  Socket.IO y ejecuta el job periódico de limpieza de tokens.
+- **Rutas y middleware.** Cada módulo expone un router (`auth`, `users`, `stats`, `game`
+  y `matches`). `validate` valida cuerpo y parámetros con Zod; `requireAuth` valida el
+  JWT y la vigencia de la sesión; `requireVerifiedEmail` restringe las operaciones de
+  juego a cuentas verificadas.
+- **Controladores.** Traducen la petición HTTP o el evento de transporte a una llamada
+  de aplicación y construyen la respuesta. No contienen consultas Prisma ni reglas de
+  persistencia.
+- **Servicios.** Contienen los casos de uso y las reglas de negocio: autenticación,
+  perfiles, avatares, partidas, estadísticas, ranking, logros y escenarios. Reciben sus
+  dependencias mediante objetos de configuración, lo que permite probarlos sin levantar
+  todo el servidor.
+- **Repositorios.** Encapsulan el acceso a datos y son la única capa de los módulos que
+  importa el cliente Prisma. Las operaciones que modifican el cupo o el estado de una
+  partida utilizan transacciones y bloqueo de fila para evitar carreras entre jugadores.
+- **Infraestructura.** `infrastructure/` contiene Prisma, almacenamiento de archivos,
+  correo, JWT, tokens y `UnitOfWork`. Esta capa adapta servicios externos a interfaces
+  utilizables por los módulos, sin trasladar detalles de PostgreSQL o del sistema de
+  archivos a los controladores.
+- **Composición.** `container.js` crea repositorios, servicios y controladores, inyecta sus
+  dependencias y expone las instancias compartidas. `app.js` monta los routers a partir de
+  esas instancias. La composición centralizada evita que cada módulo cree sus propias
+  conexiones o dependencias globales.
+
+#### Módulos funcionales del backend
+
+| Módulo | Responsabilidad principal |
+| --- | --- |
+| `auth` | Registro, login, verificación de correo, recuperación de contraseña y OAuth de GitHub |
+| `users` | Perfil, avatares por defecto y archivos de avatar subidos |
+| `stats` | Estadísticas, historial, ranking y evaluación de logros |
+| `game` | Configuración, catálogo de escenarios, creación, unión e inicio de partidas |
+| `matches` | Consulta del historial y resultados persistidos |
+| `realtime` | Salas Socket.IO, autenticación del socket y difusión del estado |
+| `events` | Fábrica, programación y ciclo de vida de eventos especiales |
+| `scenarios` | Carga, validación y compilación de mapas JSON |
+
+#### Tiempo real y autoridad del servidor
+
+El servidor HTTP y Socket.IO comparten el puerto 3000. La conexión WebSocket recibe el
+mismo JWT utilizado por HTTP y pasa por las validaciones de autenticación y correo
+verificado. `match:join` asocia el socket con una sala y `player:input` solo comunica la
+dirección deseada; el cliente no envía posiciones ni puntajes.
+
+`ArenaEngine` es autoritativo y no conoce Socket.IO ni la base de datos. En cada tick
+actualiza movimiento, colisiones, ítems, eventos y condición de finalización. `MatchRoomManager`
+administra el ciclo de vida del motor por partida y emite `arena:state` a los clientes.
+Al finalizar, el flujo persiste primero el resultado de la partida y después actualiza
+estadísticas, ranking y logros. El motor y el programador de eventos reciben dependencias
+inyectadas, por lo que las reglas se pueden probar de forma determinista.
+
+#### Frontend
+
+El frontend es una SPA de React construida con Vite. `App.jsx` define las rutas, los
+layouts y los límites de autorización: `ProtectedRoute` requiere sesión y `VerifiedRoute`
+requiere correo verificado antes de permitir el acceso a lobby y arena. `AuthContext`
+mantiene el estado de sesión; `api/` centraliza las llamadas Axios y `hooks/` encapsula
+polling, conexión Socket.IO, teclado y entrada del hardware.
+
+La aplicación separa la vista del estado de juego: `ArenaCanvas` consume el último estado
+recibido para dibujar a alta frecuencia, mientras el HUD y React se actualizan con menor
+frecuencia. El proxy de Vite en desarrollo y nginx en producción reenvían `/api`,
+`/socket.io`, `/static` y `/uploads` al backend.
+
+#### Persistencia y modelo de datos
+
+PostgreSQL 16 almacena usuarios, identidades OAuth, avatares, tokens, estadísticas,
+logros, partidas, participantes y eventos de partida. Prisma genera el cliente y las
+migraciones versionan la evolución del esquema. Las relaciones principales son:
+
+```text
+User ── 1:1 ── PlayerStats
+User ── 1:N ── MatchParticipant ── N:1 ── Match
+Match ── 1:N ── MatchEvent
+User ── N:M ── Achievement (mediante UserAchievement)
+User ── 1:N ── Avatar / ExternalIdentity / tokens
+```
+
+El motor de una partida en curso permanece en memoria; PostgreSQL conserva el resultado,
+los participantes y los eventos al finalizar. Por ese motivo, una instancia única del
+backend es el supuesto operativo actual y un reinicio puede dejar sin motor a una partida
+que estaba en progreso.
+
+#### Despliegue y comunicación entre servicios
+
+`docker-compose.yml` define cuatro servicios:
+
+| Servicio | Función |
+| --- | --- |
+| `frontend` | Compila React y sirve los archivos estáticos mediante nginx |
+| `backend` | Ejecuta migraciones, seed, API Express y Socket.IO |
+| `db` | Ejecuta PostgreSQL 16 y conserva datos en el volumen `pgdata` |
+| `mailpit` | Captura correos de desarrollo para verificación y recuperación |
+
+El backend conserva los avatares subidos en el volumen `uploads`. El frontend funciona
+como punto de entrada del navegador: sirve la SPA y hace proxy de las solicitudes API,
+WebSocket y archivos al backend. El health check de `/api/health` valida también la
+conectividad con PostgreSQL.
+
+Para incorporar un módulo nuevo, la convención es crear sus esquemas y rutas, controlador,
+servicio y repositorio; registrar las instancias en `container.js`; y montar el router en
+`app.js`. Las dependencias de Prisma, archivos, correo y tiempo deben mantenerse fuera de
+los controladores y del motor de la arena.
 
 ## Formato único de error
 

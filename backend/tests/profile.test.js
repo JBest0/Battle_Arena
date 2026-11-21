@@ -356,3 +356,123 @@ describe('PATCH /api/users/me', () => {
     expect(empty.body.error.code).toBe('VALIDATION_ERROR');
   });
 });
+
+describe('Estadísticas e inmutabilidad (US-28)', () => {
+  it('CA-28.4/28.5 las estadísticas se actualizan tras consolidar una partida', async () => {
+    const player = await createPlayer({
+      username: 'stats_uno',
+      email: 'stats1@test.com',
+    });
+    const rival = await createPlayer({
+      username: 'rival',
+      email: 'rival@test.com',
+    });
+
+    const before = await request(app)
+      .get('/api/users/me/profile')
+      .set('Authorization', authHeader(player));
+    expect(before.body.stats).toEqual(
+      expect.objectContaining({ gamesPlayed: 0, gamesWon: 0, gamesLost: 0, totalPoints: 0 })
+    );
+
+    await createMatch({ playerA: player, playerB: rival, scoreA: 15, scoreB: 25 });
+    await createMatch({ playerA: player, playerB: rival, scoreA: 40, scoreB: 10 });
+
+    const after = await request(app)
+      .get('/api/users/me/profile')
+      .set('Authorization', authHeader(player));
+    expect(after.body.stats).toEqual(
+      expect.objectContaining({
+        gamesPlayed: 2,
+        gamesWon: 1,
+        gamesLost: 1,
+        totalPoints: 55,
+        rankingPoints: 3,
+      })
+    );
+    expect(after.body.recentMatches.total).toBe(2);
+  });
+
+  it('CA-28.6/28.7 los datos se recuperan desde la BD tras un nuevo login', async () => {
+    const player = await createPlayer({
+      username: 'relogin',
+      email: 'relogin@test.com',
+    });
+    const rival = await createPlayer({
+      username: 'rival',
+      email: 'rival@test.com',
+    });
+    await createMatch({ playerA: player, playerB: rival, scoreA: 20, scoreB: 20 });
+
+    const stored = await prisma.playerStats.findUnique({
+      where: { userId: player.id },
+    });
+
+    const login = await request(app)
+      .post('/api/auth/login')
+      .send({ identifier: 'relogin', password: 'Test1234' });
+    expect(login.status).toBe(200);
+    const freshToken = `Bearer ${login.body.accessToken}`;
+
+    const profile = await request(app)
+      .get('/api/users/me/profile')
+      .set('Authorization', freshToken);
+    expect(profile.status).toBe(200);
+    expect(profile.body.stats).toEqual(
+      expect.objectContaining({
+        gamesPlayed: stored.gamesPlayed,
+        gamesWon: stored.gamesWon,
+        gamesDrawn: 1,
+        totalPoints: stored.totalPoints,
+        rankingPoints: stored.rankingPoints,
+      })
+    );
+
+    const history = await request(app)
+      .get(`/api/users/${player.id}/matches`)
+      .set('Authorization', freshToken);
+    expect(history.status).toBe(200);
+    expect(history.body.total).toBe(1);
+    expect(history.body.items[0]).toEqual(
+      expect.objectContaining({ result: 'DRAW', finalScore: 20 })
+    );
+  });
+
+  it('CA-28.9 PATCH /api/users/me rechaza campos de estadísticas', async () => {
+    const player = await createPlayer({
+      username: 'tramposo',
+      email: 'tramposo@test.com',
+    });
+
+    const attempts = [
+      { gamesWon: 100 },
+      { totalPoints: 9999 },
+      { rankingPoints: 50, displayName: 'Tramposo' },
+      { gamesPlayed: 3, bestScore: 1000 },
+    ];
+
+    for (const body of attempts) {
+      const response = await request(app)
+        .patch('/api/users/me')
+        .set('Authorization', authHeader(player))
+        .send(body);
+      expect(response.status).toBe(400);
+      expect(response.body.error.code).toBe('VALIDATION_ERROR');
+    }
+
+    const stats = await prisma.playerStats.findUnique({
+      where: { userId: player.id },
+    });
+    expect(stats).toEqual(
+      expect.objectContaining({
+        gamesPlayed: 0,
+        gamesWon: 0,
+        totalPoints: 0,
+        rankingPoints: 0,
+        bestScore: 0,
+      })
+    );
+    const user = await prisma.user.findUnique({ where: { id: player.id } });
+    expect(user.displayName).toBeNull();
+  });
+});

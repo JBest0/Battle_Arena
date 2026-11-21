@@ -130,9 +130,9 @@ describe('tamaño del personaje en la arena', () => {
     expect(2 * (ARENA.playerRadius + RING)).toBeLessThan(2 * ARENA.cellSize);
   });
 
-  it('el choque deja pasar por 2 celdas y no por 1 (las puertas de 2 celdas bloquean)', () => {
+  it('el choque cabe en un pasillo de una celda', () => {
     expect(2 * ARENA.collisionRadius).toBeLessThan(2 * ARENA.cellSize);
-    expect(2 * ARENA.collisionRadius).toBeGreaterThan(ARENA.cellSize);
+    expect(2 * ARENA.collisionRadius).toBeLessThanOrEqual(ARENA.cellSize);
   });
 
   it('el personaje alcanza cualquier celda de energía desde el centro de un bloque de 2 × 2', () => {

@@ -2,6 +2,8 @@ node_modules/
 dist/
 coverage/
 .env
+backend/.env.local
+backend/.env.phone
 *.log
 npm-debug.log*
 .DS_Store
@@ -10,3 +12,4 @@ npm-debug.log*
 backend/uploads/
 uploads/
 *.md
+!GUIA_PRUEBAS.md

@@ -39,6 +39,9 @@ const envSchema = z.object({
     .min(RANDOM_WALL_LIMITS.intervalSeconds.min)
     .max(RANDOM_WALL_LIMITS.intervalSeconds.max)
     .default(RANDOM_WALL_LIMITS.intervalSeconds.default),
+  GITHUB_CLIENT_ID: z.string().optional(),
+  GITHUB_CLIENT_SECRET: z.string().optional(),
+  OAUTH_REDIRECT_URI: z.string().url('OAUTH_REDIRECT_URI debe ser una URL válida').optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -70,5 +73,8 @@ module.exports = {
   eventIntervalSeconds: env.EVENT_INTERVAL_SECONDS,
   eventDurationSeconds: env.EVENT_DURATION_SECONDS,
   randomWallIntervalSeconds: env.RANDOM_WALL_INTERVAL_SECONDS,
+  githubClientId: env.GITHUB_CLIENT_ID || '',
+  githubClientSecret: env.GITHUB_CLIENT_SECRET || '',
+  oauthRedirectUri: env.OAUTH_REDIRECT_URI || '',
   nodeEnv: process.env.NODE_ENV || 'development',
 };
