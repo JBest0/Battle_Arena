@@ -30,6 +30,7 @@ function startRealtime(server) {
         ...GAMEPLAY,
         eventIntervalSeconds: config.eventIntervalSeconds,
         eventDurationSeconds: config.eventDurationSeconds,
+        randomWallIntervalSeconds: config.randomWallIntervalSeconds,
       },
       // Eventos especiales (US-22): un tipo nuevo se registra en modules/events/types.
       eventFactory: createDefaultEventFactory(),

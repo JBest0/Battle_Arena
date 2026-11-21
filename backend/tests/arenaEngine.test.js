@@ -206,6 +206,8 @@ describe('ArenaEngine.snapshot', () => {
       x: 100.1,
       y: expect.any(Number),
       score: 0,
+      slow: 0,
+      risk: 1,
     });
   });
 });

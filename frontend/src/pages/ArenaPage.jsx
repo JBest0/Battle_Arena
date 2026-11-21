@@ -11,6 +11,7 @@ import { useAuth } from '../auth/AuthContext';
 import ArenaCanvas from '../components/game/ArenaCanvas';
 import ArenaHud from '../components/game/ArenaHud';
 import EventBanner from '../components/game/EventBanner';
+import HudStrip from '../components/game/HudStrip';
 import WaitingRoom from '../components/game/WaitingRoom';
 import { describeConfig } from '../game/gameConfig';
 import { useMatch } from '../hooks/useMatch';
@@ -97,6 +98,10 @@ function ArenaScreen({ match, arena, scenario, currentUserId }) {
         </p>
       )}
 
+      {hud && status !== 'COUNTDOWN' && (
+        <HudStrip config={match.config} hud={hud} currentUserId={currentUserId} />
+      )}
+
       <div className="arena-layout">
         <div
           className={`arena-stage${hud?.events?.length ? ' arena-stage-event' : ''}`}
@@ -121,6 +126,7 @@ function ArenaScreen({ match, arena, scenario, currentUserId }) {
             config={match.config}
             hud={hud}
             currentUserId={currentUserId}
+            scenario={scenario}
             soundEnabled={soundEnabled}
             onToggleSound={toggleSound}
           />

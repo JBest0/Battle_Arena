@@ -1,6 +1,9 @@
 import AvatarImage from '../AvatarImage';
 import ActiveEvents from './ActiveEvents';
+import ArenaIndicators from './ArenaIndicators';
+import MyStatus from './MyStatus';
 import { END_MODE_LABELS } from '../../game/gameConfig';
+import { isUrgent, rankPlayers } from '../../game/hudModel';
 import { formatDuration } from '../../utils/dates';
 
 function resultText(hud) {
@@ -12,15 +15,17 @@ function resultText(hud) {
   return `Empate entre ${winners.map((player) => player.username).join(', ')}`;
 }
 
-// Panel lateral de la arena: modo, reloj/objetivo, evento activo, marcador y resultado.
+// Panel lateral de la arena: reloj/objetivo, mi estado, evento activo, posiciones, peligros de
+// la arena y resultado.
 export default function ArenaHud({
   config,
   hud,
   currentUserId,
+  scenario = null,
   soundEnabled = true,
   onToggleSound = null,
 }) {
-  const ranked = [...hud.players].sort((a, b) => b.score - a.score);
+  const ranked = rankPlayers(hud.players);
   const finished = hud.status === 'FINISHED';
   const isTime = config.endMode === 'TIME';
 
@@ -35,7 +40,9 @@ export default function ArenaHud({
           <span className="arena-hud-label">
             {isTime ? 'Tiempo restante' : 'Puntos objetivo'}
           </span>
-          <span className="arena-hud-value arena-hud-value-big">
+          <span
+            className={`arena-hud-value arena-hud-value-big${isUrgent(hud) ? ' is-urgent' : ''}`}
+          >
             {isTime ? formatDuration(hud.timeRemaining) : hud.targetPoints}
           </span>
         </div>
@@ -47,11 +54,17 @@ export default function ArenaHud({
         </p>
       )}
 
+      <MyStatus hud={hud} currentUserId={currentUserId} />
+
       <ActiveEvents events={hud.events} />
 
-      <ol className="arena-scoreboard">
+      <ol className="arena-scoreboard" aria-label="Posiciones">
         {ranked.map((player) => (
-          <li key={player.id} className="arena-score-row">
+          <li
+            key={player.id}
+            className={`arena-score-row${player.id === currentUserId ? ' is-me' : ''}`}
+          >
+            <span className="arena-score-rank">{player.rank}</span>
             <span
               className="arena-score-dot"
               style={{ backgroundColor: player.color }}
@@ -66,10 +79,14 @@ export default function ArenaHud({
               {player.username}
               {player.id === currentUserId && ' (tú)'}
             </span>
+            {player.slow > 0 && <span className="score-tag score-tag-bad">Frenado</span>}
+            {player.risk > 1 && <span className="score-tag score-tag-risk">x{player.risk}</span>}
             <span className="arena-score-points">{player.score}</span>
           </li>
         ))}
       </ol>
+
+      <ArenaIndicators scenario={scenario} obstacles={hud.obstacles} />
 
       {onToggleSound && (
         <button

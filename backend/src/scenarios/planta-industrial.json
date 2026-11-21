@@ -10,13 +10,150 @@
     "wallTop": "#a39485",
     "reactor": "#ff8a3d",
     "terminal": "#9be564",
-    "cell": "#ffd23f"
+    "cell": "#ffd23f",
+    "trap": "#ffb703",
+    "riskZone": "#ff4d6d",
+    "barrier": "#ffd23f",
+    "door": "#9be564"
   },
   "music": {
     "track": "ritmo-de-maquinas",
     "src": null,
     "volume": 0.4
   },
+  "obstacles": {
+    "barriers": [
+      {
+        "id": "cinta-1",
+        "cols": 1,
+        "rows": 2,
+        "route": [
+          [4, 4],
+          [7, 4],
+          [10, 4]
+        ],
+        "pattern": "pingpong",
+        "periodSeconds": 2.5
+      },
+      {
+        "id": "cinta-2",
+        "cols": 1,
+        "rows": 2,
+        "route": [
+          [27, 4],
+          [24, 4],
+          [21, 4]
+        ],
+        "pattern": "pingpong",
+        "periodSeconds": 2.5
+      },
+      {
+        "id": "cinta-3",
+        "cols": 1,
+        "rows": 2,
+        "route": [
+          [4, 14],
+          [7, 14],
+          [10, 14]
+        ],
+        "pattern": "pingpong",
+        "periodSeconds": 2.5
+      },
+      {
+        "id": "cinta-4",
+        "cols": 1,
+        "rows": 2,
+        "route": [
+          [27, 14],
+          [24, 14],
+          [21, 14]
+        ],
+        "pattern": "pingpong",
+        "periodSeconds": 2.5
+      }
+    ],
+    "doors": [],
+    "corridors": [
+      {
+        "id": "tolva-1",
+        "col": 14,
+        "row": 3,
+        "cols": 4,
+        "rows": 1,
+        "closedSeconds": 5,
+        "minOpenSeconds": 8,
+        "maxOpenSeconds": 16
+      },
+      {
+        "id": "tolva-2",
+        "col": 14,
+        "row": 16,
+        "cols": 4,
+        "rows": 1,
+        "closedSeconds": 5,
+        "minOpenSeconds": 8,
+        "maxOpenSeconds": 16
+      }
+    ]
+  },
+  "traps": [
+    {
+      "id": "aceite-1",
+      "col": 9,
+      "row": 7,
+      "cols": 3,
+      "rows": 2,
+      "slowFactor": 0.45,
+      "durationSeconds": 2.5
+    },
+    {
+      "id": "aceite-2",
+      "col": 20,
+      "row": 7,
+      "cols": 3,
+      "rows": 2,
+      "slowFactor": 0.45,
+      "durationSeconds": 2.5
+    },
+    {
+      "id": "aceite-3",
+      "col": 9,
+      "row": 11,
+      "cols": 3,
+      "rows": 2,
+      "slowFactor": 0.45,
+      "durationSeconds": 2.5
+    },
+    {
+      "id": "aceite-4",
+      "col": 20,
+      "row": 11,
+      "cols": 3,
+      "rows": 2,
+      "slowFactor": 0.45,
+      "durationSeconds": 2.5
+    }
+  ],
+  "riskZones": [
+    {
+      "id": "tolva-central-1",
+      "col": 13,
+      "row": 5,
+      "cols": 6,
+      "rows": 2,
+      "multiplier": 2,
+      "exposure": 2
+    },
+    {
+      "id": "tolva-central-2",
+      "col": 13,
+      "row": 13,
+      "cols": 6,
+      "rows": 2,
+      "multiplier": 2,
+      "exposure": 2
+    }
+  ],
   "map": [
     "################################",
     "#1......C..............C......3#",

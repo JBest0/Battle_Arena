@@ -3,6 +3,9 @@
 // ni base de datos: recibe `dt` en cada paso, así que se prueba de forma determinista.
 
 const { EventScheduler } = require('../events/eventScheduler');
+const { ObstacleSystem } = require('../obstacles/obstacleSystem');
+const { allReachable } = require('../scenarios/scenario.reachability');
+const { initialEffects, speedFactor, slowRemaining, applyHazards } = require('./hazards');
 
 // Largo máximo de cada paso de movimiento (unidades de arena); menor que una celda.
 const MAX_STEP = 4;
@@ -38,6 +41,9 @@ class ArenaEngine {
    * @param {object|null} [options.eventFactory]  fábrica de eventos especiales (ver
    *   modules/events); sin ella no ocurren eventos. Usa rules.eventIntervalSeconds y
    *   rules.eventDurationSeconds.
+   * @param {number} [options.obstacleSeed]  semilla de los obstáculos aleatorios (corredores
+   *   y paredes); con la misma semilla la secuencia se repite. Por defecto sale de `random`.
+   *   Las paredes aleatorias usan rules.randomWallIntervalSeconds.
    */
   constructor({
     config,
@@ -47,12 +53,16 @@ class ArenaEngine {
     random = Math.random,
     scenario = null,
     eventFactory = null,
+    obstacleSeed = undefined,
   }) {
     this.config = config;
     this.scenario = scenario;
-    // Copia propia de los muros: el escenario compilado se comparte entre partidas y los
-    // eventos (ruta alternativa) abren y cierran muros solo en esta.
+    // Copia propia de los muros: el escenario compilado se comparte entre partidas. Un
+    // muro está en `solid` si es del mapa y no lo abrió un evento (ruta alternativa), o si
+    // lo ocupa un obstáculo dinámico (`blockers` cuenta cuántos hay sobre cada celda).
+    this.baseSolid = scenario ? scenario.solid.map((row) => [...row]) : null;
     this.solid = scenario ? scenario.solid.map((row) => [...row]) : null;
+    this.blockers = new Map();
     this.openedWalls = new Set();
     this.closingWalls = new Set();
     this.arena = arena;
@@ -83,7 +93,21 @@ class ArenaEngine {
       score: 0,
       dx: 0,
       dy: 0,
+      ...initialEffects(),
     }));
+
+    this.obstacles = null;
+    if (scenario && ObstacleSystem.isNeeded(scenario)) {
+      const seed =
+        obstacleSeed ??
+        (ObstacleSystem.usesRandom(scenario) ? Math.floor(random() * 4294967296) : 0);
+      this.obstacles = new ObstacleSystem({
+        scenario,
+        seed,
+        randomWallIntervalSeconds: rules.randomWallIntervalSeconds ?? 10,
+      });
+      this.obstacles.init(this);
+    }
   }
 
   spawnFor(index) {
@@ -159,7 +183,9 @@ class ArenaEngine {
 
     this.elapsed += dt;
     this.events?.update(dt, this);
+    this.obstacles?.update(dt, this);
     this.movePlayers(dt);
+    this.applyPlayerHazards();
     this.collectItems();
     this.refillItems();
     this.closePendingWalls();
@@ -175,25 +201,40 @@ class ArenaEngine {
     const clamp = (value, max) => Math.min(Math.max(value, playerRadius), max - playerRadius);
 
     for (const player of this.players) {
-      const distance = Math.hypot(player.dx, player.dy) * this.rules.playerSpeed * dt;
+      // Una trampa pisada reduce la velocidad un rato (ver hazards.js).
+      const speed = this.rules.playerSpeed * speedFactor(player, this.elapsed);
+      const distance = Math.hypot(player.dx, player.dy) * speed * dt;
       const steps = Math.max(1, Math.ceil(distance / MAX_STEP));
       const stepDt = dt / steps;
 
       for (let i = 0; i < steps; i += 1) {
-        const nextX = clamp(player.x + player.dx * this.rules.playerSpeed * stepDt, width);
+        const nextX = clamp(player.x + player.dx * speed * stepDt, width);
         if (!this.collides(nextX, player.y, radius)) player.x = nextX;
 
-        const nextY = clamp(player.y + player.dy * this.rules.playerSpeed * stepDt, height);
+        const nextY = clamp(player.y + player.dy * speed * stepDt, height);
         if (!this.collides(player.x, nextY, radius)) player.y = nextY;
       }
     }
   }
 
+  // Trampas y sectores de riesgo del escenario (si tiene).
+  applyPlayerHazards() {
+    if (!this.scenario) return;
+
+    applyHazards({
+      players: this.players,
+      traps: this.scenario.traps,
+      riskZones: this.scenario.riskZones,
+      elapsed: this.elapsed,
+    });
+  }
+
   // Cada ítem es del jugador más cercano que lo toque; si hay empate, del primero en la lista.
   collectItems() {
     const reach = this.arena.playerRadius + this.arena.itemRadius;
-    // Cada celda vale 1 punto, multiplicado por los eventos activos (sobrecarga: x2).
-    const points = this.events ? this.events.modifiers().pointMultiplier : 1;
+    // Cada celda vale 1 punto, multiplicado por los eventos activos (sobrecarga: x2) y por
+    // el sector de riesgo donde está quien la recoge.
+    const eventMultiplier = this.events ? this.events.modifiers().pointMultiplier : 1;
 
     this.items = this.items.filter((item) => {
       let closest = null;
@@ -208,7 +249,7 @@ class ArenaEngine {
       }
 
       if (closest) {
-        closest.score += points;
+        closest.score += eventMultiplier * closest.risk;
         return false;
       }
       return true;
@@ -238,26 +279,50 @@ class ArenaEngine {
     this.items = this.items.filter((item) => !item.bonus);
   }
 
-  // --- Muros dinámicos (los usan los eventos; las barreras y paredes de US-20 y US-26
-  // pueden reutilizarlos) ---
+  // --- Muros dinámicos ---
+  // Los cambian los eventos (ruta alternativa: openWall / requestWallClose) y los obstáculos
+  // (tryBlocks). Ninguna operación deja a un jugador dentro de un muro ni cierra todas las
+  // rutas al reactor.
 
-  // Datos de la cuadrícula para decidir qué muros se pueden abrir.
+  // Datos de la cuadrícula del mapa (sin obstáculos) para decidir qué muros se pueden abrir.
   wallGrid() {
     const { cols, rows, reactor } = this.scenario;
 
-    return { solid: this.solid, cols, rows, reactor };
+    return { solid: this.baseSolid, cols, rows, reactor };
+  }
+
+  // Valor de una celda: muro del mapa que no abrió un evento, u ocupada por un obstáculo.
+  cellIsSolid(col, row) {
+    return (
+      (this.baseSolid[row][col] && !this.openedWalls.has(`${col},${row}`)) ||
+      (this.blockers.get(`${col},${row}`) || 0) > 0
+    );
+  }
+
+  refreshCell(col, row) {
+    this.solid[row][col] = this.cellIsSolid(col, row);
+  }
+
+  removeItemsIn(cells) {
+    const size = this.scenario.cellSize;
+    this.items = this.items.filter(
+      (item) =>
+        !cells.some(
+          ({ col, row }) => Math.floor(item.x / size) === col && Math.floor(item.y / size) === row
+        )
+    );
   }
 
   openWall(col, row) {
-    if (!this.solid?.[row]?.[col]) return;
+    if (!this.baseSolid?.[row]?.[col]) return;
 
-    this.solid[row][col] = false;
     this.openedWalls.add(`${col},${row}`);
     this.closingWalls.delete(`${col},${row}`);
+    this.refreshCell(col, row);
   }
 
-  // Pide cerrar esos muros: cada uno se cierra apenas no haya ningún jugador tocándolo,
-  // para no dejar a nadie atrapado dentro de un muro.
+  // Pide cerrar esos muros: cada uno se cierra apenas no haya ningún jugador tocándolo y no
+  // quede incomunicada ninguna zona, para no dejar a nadie atrapado.
   requestWallClose(cells) {
     cells.forEach(({ col, row }) => {
       if (this.openedWalls.has(`${col},${row}`)) this.closingWalls.add(`${col},${row}`);
@@ -276,21 +341,82 @@ class ArenaEngine {
     });
   }
 
+  // ¿Con esos muros siguen conectados el reactor, las terminales, las celdas, los inicios y
+  // cada jugador? (pasillos donde cabe el jugador, ver scenario.reachability)
+  stillConnected(solid) {
+    const { cols, rows, reactor, targets, cellSize } = this.scenario;
+    const playerCells = this.players.map((player) => ({
+      col: Math.min(cols - 1, Math.max(0, Math.floor(player.x / cellSize))),
+      row: Math.min(rows - 1, Math.max(0, Math.floor(player.y / cellSize))),
+    }));
+
+    return allReachable({ solid, cols, rows, reactor, targets: [...targets, ...playerCells] });
+  }
+
+  /**
+   * Cambia qué celdas ocupan los obstáculos: `add` las ocupa y `remove` las libera. Solo se
+   * hace si ninguna celda que pase a ser muro toca a un jugador y si, con el cambio, el
+   * reactor, las terminales, las celdas de energía, los inicios y los jugadores siguen
+   * conectados. Devuelve si se aplicó. Liberar celdas siempre se puede.
+   */
+  tryBlocks({ add = [], remove = [] }) {
+    const { cols, rows } = this.scenario;
+    const delta = new Map();
+    const bump = ({ col, row }, amount) => {
+      const key = `${col},${row}`;
+      delta.set(key, { col, row, change: (delta.get(key)?.change || 0) + amount });
+    };
+    [...add, ...remove].forEach(({ col, row }) => {
+      if (col < 0 || row < 0 || col >= cols || row >= rows) delta.set('fuera', { invalid: true });
+    });
+    if (delta.has('fuera')) return false;
+    add.forEach((cell) => bump(cell, 1));
+    remove.forEach((cell) => bump(cell, -1));
+
+    const next = this.solid.map((row) => [...row]);
+    const newlySolid = [];
+    for (const [key, { col, row, change }] of delta) {
+      const count = (this.blockers.get(key) || 0) + change;
+      const solid =
+        (this.baseSolid[row][col] && !this.openedWalls.has(key)) || count > 0;
+      if (solid && !this.solid[row][col]) newlySolid.push({ col, row });
+      next[row][col] = solid;
+    }
+
+    if (newlySolid.length > 0) {
+      if (newlySolid.some(({ col, row }) => this.wallBlockedByPlayer(col, row))) return false;
+      if (!this.stillConnected(next)) return false;
+    }
+
+    for (const [key, { col, row, change }] of delta) {
+      const count = (this.blockers.get(key) || 0) + change;
+      if (count > 0) this.blockers.set(key, count);
+      else this.blockers.delete(key);
+      this.refreshCell(col, row);
+    }
+    // Una celda de energía que quedó dentro de un obstáculo no se podría recoger.
+    this.removeItemsIn(newlySolid);
+
+    return true;
+  }
+
   closePendingWalls() {
     if (this.closingWalls.size === 0) return;
 
-    const size = this.scenario.cellSize;
     for (const key of [...this.closingWalls]) {
       const [col, row] = key.split(',').map(Number);
       if (!this.wallBlockedByPlayer(col, row)) {
-        this.solid[row][col] = true;
+        // El hueco puede ser una ruta de la que dependen otras zonas (si un obstáculo cerró
+        // la otra): espera a que cerrarlo no deje a nadie sin camino.
+        const next = this.solid.map((line) => [...line]);
+        next[row][col] = true;
+        if (!this.stillConnected(next)) continue;
+
         this.openedWalls.delete(key);
         this.closingWalls.delete(key);
+        this.refreshCell(col, row);
         // Una celda que cayó dentro del hueco no se podría recoger: se retira.
-        this.items = this.items.filter(
-          (item) =>
-            Math.floor(item.x / size) !== col || Math.floor(item.y / size) !== row
-        );
+        this.removeItemsIn([{ col, row }]);
       }
     }
   }
@@ -374,6 +500,10 @@ class ArenaEngine {
         x: round(player.x),
         y: round(player.y),
         score: player.score,
+        // Efectos: segundos de ralentización que le quedan (0 = ninguno) y multiplicador del
+        // sector de riesgo donde está (1 = fuera de uno).
+        slow: round(slowRemaining(player, this.elapsed)),
+        risk: player.risk,
       })),
       items: this.items.map((item) => ({
         id: item.id,
@@ -384,6 +514,9 @@ class ArenaEngine {
       events: this.events ? this.events.publicState() : [],
       // Muros abiertos por eventos, como [columna, fila] (los que se están cerrando incluidos).
       openWalls: [...this.openedWalls].sort().map((key) => key.split(',').map(Number)),
+      // Obstáculos dinámicos con su posición y estado: { id, kind (barrier | door | corridor |
+      // wall), col, row, cols, rows, closed, warning }.
+      obstacles: this.obstacles ? this.obstacles.snapshot() : [],
       winnerIds: this.winnerIds,
     };
   }

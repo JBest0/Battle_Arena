@@ -4,6 +4,7 @@ const { AppError } = require('../../shared/AppError');
 const { SCENARIO_RANDOM } = require('../game/game.config');
 const { createScenarioSchema } = require('./scenario.schema');
 const { validateMap, compileScenario } = require('./scenario.map');
+const { validateExtras } = require('./scenario.extras');
 
 // Catálogo de escenarios cargados desde archivos. Es solo de lectura: para agregar uno
 // se copia un .json a la carpeta de escenarios y se reinicia el servidor.
@@ -92,7 +93,7 @@ function loadScenarioCatalog({ dir, arena, logger = console }) {
     try {
       const raw = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf-8'));
       const definition = schema.parse(raw);
-      const problems = validateMap(definition.map);
+      const problems = [...validateMap(definition.map), ...validateExtras(definition)];
 
       if (problems.length > 0) {
         throw new Error(problems.join('; '));

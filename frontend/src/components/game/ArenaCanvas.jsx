@@ -1,5 +1,12 @@
 import { useEffect, useRef } from 'react';
-import { drawScenarioLayer, parseScenarioMap, scenarioPalette } from '../../game/scenarioRender';
+import {
+  REACTOR_HEIGHT,
+  drawObstacles,
+  drawScenarioLayer,
+  parseScenarioMap,
+  scenarioPalette,
+} from '../../game/scenarioRender';
+import { EffectsLayer, trackEffects } from '../../game/effects';
 
 const TAU = Math.PI * 2;
 // Luz que conserva el jugador local dentro de la zona en apagón (unidades de arena).
@@ -63,14 +70,27 @@ function drawFloor(ctx, arena) {
   ctx.strokeRect(3, 3, arena.width - 6, arena.height - 6);
 }
 
-function drawItems(ctx, items, radius, color = COLORS.item) {
-  ctx.fillStyle = color;
-  ctx.strokeStyle = COLORS.itemEdge;
-  ctx.lineWidth = 2;
-
+// Celdas de energía: flotan (suben y bajan), con halo y sombra en el piso.
+function drawItems(ctx, items, radius, color = COLORS.item, time = 0) {
   for (const item of items) {
+    const bob = Math.sin(time / 320 + item.x * 0.05) * 2.2;
+    const y = item.y - 4 + bob;
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
     ctx.beginPath();
-    ctx.arc(item.x, item.y, radius, 0, TAU);
+    ctx.ellipse(item.x, item.y + radius * 0.85, radius * 0.85, radius * 0.32, 0, 0, TAU);
+    ctx.fill();
+
+    ctx.fillStyle = `${color}33`;
+    ctx.beginPath();
+    ctx.arc(item.x, y, radius * 1.8, 0, TAU);
+    ctx.fill();
+
+    ctx.fillStyle = color;
+    ctx.strokeStyle = COLORS.itemEdge;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(item.x, y, radius, 0, TAU);
     ctx.fill();
     ctx.stroke();
   }
@@ -100,7 +120,7 @@ function drawOpenWalls(ctx, openWalls, arena, palette, accent) {
 // Sobrecarga del reactor: el reactor late con el color del evento.
 function drawReactorPulse(ctx, reactor, size, accent, time) {
   const x = reactor.col * size;
-  const y = reactor.row * size;
+  const y = reactor.row * size - REACTOR_HEIGHT; // la cara superior va elevada
   const width = reactor.cols * size;
   const height = reactor.rows * size;
   const pulse = 0.5 + 0.5 * Math.sin(time / 140);
@@ -150,6 +170,48 @@ function drawBlackout(ctx, region, light) {
   ctx.restore();
 }
 
+// Jugador ralentizado por una trampa: anillo discontinuo que gira, en el color de las trampas.
+function drawSlowRing(ctx, player, radius, color, time) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.setLineDash([7, 6]);
+  ctx.lineDashOffset = -time / 60;
+  ctx.beginPath();
+  ctx.arc(player.x, player.y, radius + 9, 0, TAU);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Anillo bajo quien juega en este navegador, para encontrarse de un vistazo.
+function drawLocalRing(ctx, player, radius, time) {
+  const pulse = 0.5 + 0.5 * Math.sin(time / 260);
+
+  ctx.save();
+  ctx.strokeStyle = `rgba(255, 255, 255, ${0.55 + 0.35 * pulse})`;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.arc(player.x, player.y, radius + 7 + pulse * 2, 0, TAU);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Jugador dentro de un sector de riesgo: etiqueta con el multiplicador que está ganando.
+function drawRiskBadge(ctx, player, radius, color) {
+  const x = player.x + radius + 4;
+  const y = player.y - radius - 4;
+
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x, y, 11, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '700 11px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(`x${player.risk}`, x, y + 0.5);
+}
+
 function drawPlayer(ctx, player, radius) {
   const { x, y } = player;
 
@@ -195,9 +257,9 @@ function drawPlayer(ctx, player, radius) {
   ctx.fillText(label, x, labelY);
 }
 
-function draw(ctx, canvas, state, arena, layer, scenario, currentUserId, reactor, time) {
+function draw(ctx, canvas, state, view) {
+  const { arena, layer, scenario, palette, currentUserId, reactor, time, appear } = view;
   const scale = canvas.width / arena.width;
-  const palette = scenarioPalette(scenario);
   const event = state.events && state.events.length > 0 ? state.events[0] : null;
   const accent = event?.accent || '#7bffb0';
 
@@ -213,21 +275,36 @@ function draw(ctx, canvas, state, arena, layer, scenario, currentUserId, reactor
   if (state.openWalls && state.openWalls.length > 0) {
     drawOpenWalls(ctx, state.openWalls, arena, palette, accent);
   }
+  if (state.obstacles && state.obstacles.length > 0) {
+    drawObstacles(ctx, state.obstacles, arena.cellSize, palette, time, appear);
+  }
   if (event?.type === 'reactor-overload' && reactor) {
     drawReactorPulse(ctx, reactor, arena.cellSize, accent, time);
   }
 
   // Las celdas extra de la lluvia de energía se distinguen de las normales.
-  drawItems(ctx, state.items.filter((item) => !item.bonus), arena.itemRadius, palette.cell);
-  drawItems(ctx, state.items.filter((item) => item.bonus), arena.itemRadius + 2, BONUS_ITEM_COLOR);
+  drawItems(ctx, state.items.filter((item) => !item.bonus), arena.itemRadius, palette.cell, time);
+  drawItems(
+    ctx,
+    state.items.filter((item) => item.bonus),
+    arena.itemRadius + 2,
+    BONUS_ITEM_COLOR,
+    time
+  );
   for (const player of state.players) {
+    if (player.id === currentUserId) drawLocalRing(ctx, player, arena.playerRadius, time);
+    if (player.slow > 0) drawSlowRing(ctx, player, arena.playerRadius, palette.trap, time);
     drawPlayer(ctx, player, arena.playerRadius);
+    if (player.risk > 1) drawRiskBadge(ctx, player, arena.playerRadius, palette.riskZone);
   }
 
   if (event?.params?.region) {
     const me = state.players.find((player) => player.id === currentUserId);
     drawBlackout(ctx, event.params.region, me ? { x: me.x, y: me.y } : null);
   }
+
+  // efectos (puntos que suben, polvo al frenarse): encima de todo, también del apagón
+  view.effects.draw(ctx);
 }
 
 /*
@@ -244,6 +321,22 @@ export default function ArenaCanvas({ stateRef, arena, scenario = null, currentU
 
     let layer = null;
     const reactor = scenario ? parseScenarioMap(scenario.map).reactor : null;
+    const palette = scenarioPalette(scenario);
+    const effects = new EffectsLayer();
+    const previous = new Map();
+    // Con ?fps=1 en la dirección se muestra (y se expone en window.__arenaFps) el FPS real.
+    const showFps = new URLSearchParams(window.location.search).has('fps');
+    let frames = 0;
+    let fpsSince = performance.now();
+    let fps = 0;
+    let lastFrame = fpsSince;
+    // Las paredes nuevas aparecen con un fundido: se anota cuándo se vio cada obstáculo.
+    const firstSeen = new Map();
+    const appear = (id) => {
+      if (!firstSeen.has(id)) firstSeen.set(id, performance.now());
+
+      return Math.min(1, (performance.now() - firstSeen.get(id)) / 400);
+    };
 
     function rebuildLayer() {
       if (!scenario) {
@@ -275,8 +368,47 @@ export default function ArenaCanvas({ stateRef, arena, scenario = null, currentU
     let frame = 0;
     function render() {
       const state = stateRef.current;
+      const now = performance.now();
+
       if (state) {
-        draw(ctx, canvas, state, arena, layer, scenario, currentUserId, reactor, performance.now());
+        const event = state.events && state.events.length > 0 ? state.events[0] : null;
+        trackEffects(effects, previous, state, {
+          currentUserId,
+          palette,
+          accent: event?.accent,
+        });
+        effects.update(Math.min(0.1, (now - lastFrame) / 1000));
+        draw(ctx, canvas, state, {
+          arena,
+          layer,
+          scenario,
+          palette,
+          currentUserId,
+          reactor,
+          time: now,
+          appear,
+          effects,
+        });
+
+        if (showFps) {
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.fillStyle = 'rgba(8, 12, 18, 0.75)';
+          ctx.fillRect(6, 6, 74, 22);
+          ctx.fillStyle = fps >= 30 ? '#7bffb0' : '#ff6b6b';
+          ctx.font = '700 13px system-ui, sans-serif';
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(`${fps} FPS`, 12, 17);
+        }
+      }
+
+      lastFrame = now;
+      frames += 1;
+      if (now - fpsSince >= 1000) {
+        fps = Math.round((frames * 1000) / (now - fpsSince));
+        frames = 0;
+        fpsSince = now;
+        if (showFps) window.__arenaFps = fps;
       }
       frame = requestAnimationFrame(render);
     }
