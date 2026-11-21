@@ -5,6 +5,8 @@ import { io } from 'socket.io-client';
 export function createGameSocket() {
   return io({
     auth: { token: sessionStorage.getItem('token') },
-    transports: ['websocket'],
+    // Long polling keeps the arena available on mobile networks that block
+    // WebSocket upgrades; Socket.IO will upgrade to WebSocket when possible.
+    transports: ['polling', 'websocket'],
   });
 }
