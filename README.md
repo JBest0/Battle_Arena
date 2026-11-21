@@ -949,6 +949,47 @@ El sonido se sintetiza en el navegador (Web Audio): no hay archivos de audio ni 
 documentar. El botón «Sonido» del panel lo silencia y se recuerda en `localStorage`. El
 apagón es solo visual: el servidor decide la región y el cliente la oscurece.
 
+## Interfaz e indicadores
+
+El panel de la arena (`ArenaHud`) y la arena misma (`ArenaCanvas`) muestran lo que pide el
+ERS (US-024, US-031 y los efectos básicos de US-037):
+
+| Indicador | Dónde | Qué muestra |
+| --- | --- | --- |
+| Tiempo restante (o puntos objetivo) | Panel y barra superior en móvil | Reloj; en los últimos 10 s se pone rojo y parpadea |
+| Mi estado | Panel | Mi posición, mi puntaje, cuánto vale cada celda ahora (x1; x2 con la sobrecarga; se multiplica por el sector de riesgo) y mis efectos (**Ralentizado** con su cuenta atrás, **Sector de riesgo** con el multiplicador) |
+| Evento activo | Panel y borde de la arena | Nombre, descripción y tiempo que le queda (US-22) |
+| Posiciones | Panel | Jugadores ordenados por puntaje (los empates comparten posición), con su etiqueta de **Frenado** o **xN** |
+| Peligros de la arena | Panel | Leyenda de lo que trae el escenario (trampas, sectores de riesgo, puertas, corredores, barreras y paredes que cambian), su estado en vivo («1 de 6 cerradas», «2 paredes ahora») y un aviso cuando algo está por cerrarse o moverse |
+| Barra compacta | Encima de la arena, solo en pantallas de hasta 860 px | Reloj, posición, puntaje, efectos y avisos, para no tener que bajar al panel |
+
+- **Frecuencia.** El servidor emite el estado 30 veces por segundo; el panel se refresca cada
+  200 ms (`HUD_INTERVAL_MS` en `useArenaSocket.js`), por debajo de los 500 ms del criterio. El
+  canvas se dibuja con cada cuadro del navegador y lee el estado desde una referencia, sin
+  volver a renderizar React.
+- **Profundidad.** La vista sigue siendo desde arriba (los controles no cambian), pero los
+  volúmenes se dibujan con una cara superior desplazada y su frente: muros, reactor, barreras,
+  puertas y paredes aleatorias, con sombra en el piso y viñeta en los bordes. Las celdas de
+  energía flotan con su sombra y los personajes llevan sombra; quien juega en este navegador
+  tiene un anillo para encontrarse de un vistazo.
+- **Paleta por escenario.** Cada escenario define sus colores (incluidos los de trampas,
+  sectores, puertas y barreras); el HUD usa los mismos en la leyenda.
+- **Efectos.** Al sumar puntos sube un «+N» con una ráfaga de partículas (del color del
+  sector de riesgo o del evento activo); al quedar ralentizado sale polvo y, para quien
+  juega, un «¡Frenado!»; las puertas y barreras parpadean antes de actuar; los eventos
+  anuncian con banner, borde y sonido (`frontend/src/game/effects.js`).
+- **Rendimiento (≥ 30 FPS).** Se comprobó con Chromium: 60 FPS en escritorio y en tamaño móvil.
+  Para medirlo en cualquier partida se agrega `&fps=1` a la dirección de la arena: aparece el
+  contador en la esquina del canvas (verde si llega a 30) y queda en `window.__arenaFps`.
+- **Móvil.** El diseño se adapta a pantallas pequeñas y no genera desplazamiento horizontal.
+  Los controles siguen siendo el teclado (WASD o flechas): todavía no hay control táctil.
+- **Recursos y licencias.** Todo se dibuja y se sintetiza con código; no hay imágenes, fuentes
+  ni audio de terceros. Ver `docs/GRAFICOS_Y_LICENCIAS.md` (los avatares por defecto están
+  pendientes de documentar).
+
+La lógica del HUD está separada de React y del canvas (`frontend/src/game/hudModel.js`:
+ranking, estado propio, efectos, avisos y leyenda) para poder probarla.
+
 ## Base de datos
 
 - PostgreSQL 16 + Prisma.
@@ -980,7 +1021,10 @@ Las del juego que **no** necesitan base de datos: `arenaEngine`, `matchRoomManag
 `game.finish`, las de eventos especiales (`events.factory`, `events.scheduler`,
 `arenaEngine.events`, `matchRoomManager.events` y `game.events.persist`) y las de obstáculos
 (`obstacles.engine`, `hazards.engine`, `obstacles.scenarios.sim`, `scenarios.extras`,
-`scenario.reachability` y `seededRandom`). Usan `tests/helpers/inMemoryGame.js`, un repositorio en memoria con la
+`scenario.reachability` y `seededRandom`).
+
+El frontend tiene pruebas de su lógica sin dependencias adicionales (el corredor de pruebas de
+Node): `cd frontend && npm test` (HUD, efectos visuales y estado de la arena). Usan `tests/helpers/inMemoryGame.js`, un repositorio en memoria con la
 misma interfaz que `GameRepository`.
 
 ## Desarrollo sin Docker

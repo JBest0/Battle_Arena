@@ -8,7 +8,9 @@
  *   countdown: number,              // segundos que faltan para empezar (COUNTDOWN)
  *   timeRemaining: number | null,   // segundos (modo TIME)
  *   targetPoints: number | null,    // (modo POINTS)
- *   players: [{ id, username, avatarUrl, x, y, score, color }],
+ *   players: [{ id, username, avatarUrl, x, y, score, color,
+ *     slow,                        // segundos de ralentización que le quedan (0 = ninguna)
+ *     risk }],                     // multiplicador del sector de riesgo donde está (1 = fuera)
  *   items: [{ id, x, y, bonus }],   // bonus: celda extra de un evento (lluvia de energía)
  *   events: [{                      // evento especial activo (a lo sumo uno), [] si no hay
  *     id, type, name, description, accent,   // accent: color #rrggbb
@@ -16,6 +18,8 @@
  *     params,                                // datos del tipo (p. ej. blackout: { side, region })
  *   }],
  *   openWalls: [[col, fila]],       // muros abiertos por un evento (ruta alternativa)
+ *   obstacles: [{ id, kind, col, row, cols, rows, closed, warning }],  // kind: barrier | door |
+ *                                   // corridor | wall; warning: está por cerrarse o moverse
  *   winnerIds: string[],            // vacío mientras se juega; varios = empate
  * }
  * Las dimensiones de la arena no viajan en cada estado: vienen de GET /api/game/options.
@@ -33,12 +37,15 @@ export function toHud(state) {
     targetPoints: state.targetPoints,
     winnerIds: state.winnerIds,
     events: state.events || [],
-    players: state.players.map(({ id, username, avatarUrl, score, color }) => ({
+    obstacles: state.obstacles || [],
+    players: state.players.map(({ id, username, avatarUrl, score, color, slow, risk }) => ({
       id,
       username,
       avatarUrl,
       score,
       color,
+      slow: slow || 0,
+      risk: risk || 1,
     })),
   };
 }
