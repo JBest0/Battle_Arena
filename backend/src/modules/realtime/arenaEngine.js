@@ -201,9 +201,9 @@ class ArenaEngine {
 
     this.elapsed += dt;
     this.events?.update(dt, this);
-    this.obstacles?.update(dt, this);
     this.guardians?.update(dt, this);
     this.movePlayers(dt);
+    this.obstacles?.update(dt, this);
     this.applyPlayerHazards();
     this.collectItems();
     this.refillItems();
@@ -376,12 +376,38 @@ class ArenaEngine {
   // cada jugador? (pasillos donde cabe el jugador, ver scenario.reachability)
   stillConnected(solid) {
     const { cols, rows, reactor, targets, cellSize } = this.scenario;
-    const playerCells = this.players.map((player) => ({
-      col: Math.min(cols - 1, Math.max(0, Math.floor(player.x / cellSize))),
-      row: Math.min(rows - 1, Math.max(0, Math.floor(player.y / cellSize))),
-    }));
+    if (!allReachable({ solid, cols, rows, reactor, targets })) return false;
 
-    return allReachable({ solid, cols, rows, reactor, targets: [...targets, ...playerCells] });
+    const start = targets[0];
+    if (!start) return true;
+
+    const seen = new Set([`${start.col},${start.row}`]);
+    const queue = [start];
+    while (queue.length > 0) {
+      const { col, row } = queue.shift();
+      [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dc, dr]) => {
+        const nextCol = col + dc;
+        const nextRow = row + dr;
+        const key = `${nextCol},${nextRow}`;
+        if (
+          nextCol >= 0 &&
+          nextCol < cols &&
+          nextRow >= 0 &&
+          nextRow < rows &&
+          !solid[nextRow][nextCol] &&
+          !seen.has(key)
+        ) {
+          seen.add(key);
+          queue.push({ col: nextCol, row: nextRow });
+        }
+      });
+    }
+
+    return this.players.every((player) => {
+      const col = Math.min(cols - 1, Math.max(0, Math.floor(player.x / cellSize)));
+      const row = Math.min(rows - 1, Math.max(0, Math.floor(player.y / cellSize)));
+      return seen.has(`${col},${row}`);
+    });
   }
 
   /**
