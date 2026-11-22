@@ -42,6 +42,9 @@ const seconds = (value) => `${Math.max(1, Math.ceil(value))} s`;
 export function myEffects(me, events = [], { includeEvents = false } = {}) {
   const effects = [];
 
+  if (me.frozen > 0) {
+    effects.push({ id: 'frozen', label: 'Congelado', detail: seconds(me.frozen), tone: 'frozen' });
+  }
   if (me.slow > 0) {
     effects.push({ id: 'slow', label: 'Ralentizado', detail: seconds(me.slow), tone: 'bad' });
   }
@@ -186,6 +189,18 @@ export function scenarioLegend(scenario) {
   }
 
   return entries;
+}
+
+// Entrada de la leyenda para los guardianes (no depende del escenario: salen en todos).
+export function guardianLegend(count) {
+  if (!count) return null;
+
+  return {
+    id: 'guardian',
+    label: 'Guardián',
+    hint: 'Te persigue y te congela unos segundos si te toca',
+    live: `${count} en la arena`,
+  };
 }
 
 // Texto del conteo en vivo de una entrada de la leyenda ("2 de 4 cerradas", "3 activas").

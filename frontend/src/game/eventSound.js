@@ -67,6 +67,10 @@ const SOUNDS = {
   blackout: [
     { from: 440, to: 110, length: 0.7, wave: 'triangle', volume: 0.14 },
   ],
+  'guardian-invasion': [
+    { from: 180, to: 140, length: 0.3, wave: 'sawtooth', volume: 0.1 },
+    { from: 180, to: 140, at: 0.35, length: 0.3, wave: 'sawtooth', volume: 0.1 },
+  ],
   'alternate-route': [
     { from: 392, length: 0.14, wave: 'square', volume: 0.06 },
     { from: 523, at: 0.16, length: 0.14, wave: 'square', volume: 0.06 },

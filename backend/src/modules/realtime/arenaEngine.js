@@ -5,7 +5,15 @@
 const { EventScheduler } = require('../events/eventScheduler');
 const { ObstacleSystem } = require('../obstacles/obstacleSystem');
 const { allReachable } = require('../scenarios/scenario.reachability');
+const { GuardianSystem } = require('../guardians/guardianSystem');
 const { initialEffects, speedFactor, slowRemaining, applyHazards } = require('./hazards');
+const {
+  initialPlayerState,
+  isFrozen,
+  freezeRemaining,
+  stateOf,
+  freezePlayer,
+} = require('./playerStates');
 
 // Largo máximo de cada paso de movimiento (unidades de arena); menor que una celda.
 const MAX_STEP = 4;
@@ -41,6 +49,8 @@ class ArenaEngine {
    * @param {object|null} [options.eventFactory]  fábrica de eventos especiales (ver
    *   modules/events); sin ella no ocurren eventos. Usa rules.eventIntervalSeconds y
    *   rules.eventDurationSeconds.
+   * @param {object} [options.rules.guardians]  reglas de los guardianes (ver GUARDIANS en
+   *   game.config.js). Sin ellas, o sin escenario, la partida no tiene guardianes.
    * @param {number} [options.obstacleSeed]  semilla de los obstáculos aleatorios (corredores
    *   y paredes); con la misma semilla la secuencia se repite. Por defecto sale de `random`.
    *   Las paredes aleatorias usan rules.randomWallIntervalSeconds.
@@ -94,6 +104,7 @@ class ArenaEngine {
       dx: 0,
       dy: 0,
       ...initialEffects(),
+      ...initialPlayerState(),
     }));
 
     this.obstacles = null;
@@ -107,6 +118,13 @@ class ArenaEngine {
         randomWallIntervalSeconds: rules.randomWallIntervalSeconds ?? 10,
       });
       this.obstacles.init(this);
+    }
+
+    // Guardianes (US-21): se colocan al final, con los obstáculos iniciales ya puestos.
+    this.guardians = null;
+    if (scenario && rules.guardians && rules.guardians.count > 0) {
+      this.guardians = new GuardianSystem(rules.guardians);
+      this.guardians.init(this);
     }
   }
 
@@ -184,6 +202,7 @@ class ArenaEngine {
     this.elapsed += dt;
     this.events?.update(dt, this);
     this.obstacles?.update(dt, this);
+    this.guardians?.update(dt, this);
     this.movePlayers(dt);
     this.applyPlayerHazards();
     this.collectItems();
@@ -201,6 +220,9 @@ class ArenaEngine {
     const clamp = (value, max) => Math.min(Math.max(value, playerRadius), max - playerRadius);
 
     for (const player of this.players) {
+      // Un jugador congelado por un guardián no se mueve hasta descongelarse (playerStates.js).
+      if (isFrozen(player, this.elapsed)) continue;
+
       // Una trampa pisada reduce la velocidad un rato (ver hazards.js).
       const speed = this.rules.playerSpeed * speedFactor(player, this.elapsed);
       const distance = Math.hypot(player.dx, player.dy) * speed * dt;
@@ -241,6 +263,9 @@ class ArenaEngine {
       let closestDistance = Infinity;
 
       for (const player of this.players) {
+        // Congelado: no puede recoger celdas.
+        if (isFrozen(player, this.elapsed)) continue;
+
         const distance = Math.hypot(item.x - player.x, item.y - player.y);
         if (distance <= reach && distance < closestDistance) {
           closest = player;
@@ -265,6 +290,12 @@ class ArenaEngine {
       this.items.push({ id: `item-${this.nextItemId}`, x: spot.x, y: spot.y });
       this.nextItemId += 1;
     }
+  }
+
+  // Congela a un jugador (lo llaman los guardianes). Solo el servidor decide los estados: el
+  // cliente no puede ponerlos ni quitarlos. La gracia posterior evita el recongelamiento.
+  freezePlayer(player, seconds) {
+    freezePlayer(player, this.elapsed, seconds, this.rules.guardians?.graceSeconds ?? 0);
   }
 
   // Celda extra (la usan los eventos, p. ej. la lluvia de energía). Se marca como `bonus`
@@ -504,6 +535,9 @@ class ArenaEngine {
         // sector de riesgo donde está (1 = fuera de uno).
         slow: round(slowRemaining(player, this.elapsed)),
         risk: player.risk,
+        // Estado temporal ('normal' | 'frozen') y segundos de congelamiento que le quedan.
+        state: stateOf(player, this.elapsed),
+        frozen: round(freezeRemaining(player, this.elapsed)),
       })),
       items: this.items.map((item) => ({
         id: item.id,
@@ -512,6 +546,8 @@ class ArenaEngine {
         bonus: Boolean(item.bonus),
       })),
       events: this.events ? this.events.publicState() : [],
+      // Guardianes: { id, x, y, extra (de la invasión), targetId (a quién persiguen) }.
+      guardians: this.guardians ? this.guardians.snapshot() : [],
       // Muros abiertos por eventos, como [columna, fila] (los que se están cerrando incluidos).
       openWalls: [...this.openedWalls].sort().map((key) => key.split(',').map(Number)),
       // Obstáculos dinámicos con su posición y estado: { id, kind (barrier | door | corridor |

@@ -6,11 +6,17 @@ FakeEvent.type = 'fake';
 FakeEvent.label = 'Falso';
 
 describe('EventFactory', () => {
-  it('trae registrados los cuatro tipos del juego', () => {
+  it('trae registrados los cinco tipos del juego', () => {
     const factory = createDefaultEventFactory();
 
     expect(factory.types().sort()).toEqual(
-      ['alternate-route', 'blackout', 'energy-rain', 'reactor-overload'].sort()
+      [
+        'alternate-route',
+        'blackout',
+        'energy-rain',
+        'guardian-invasion',
+        'reactor-overload',
+      ].sort()
     );
   });
 
@@ -29,7 +35,7 @@ describe('EventFactory', () => {
     factory.register(FakeEvent);
 
     expect(factory.has('fake')).toBe(true);
-    expect(factory.types()).toHaveLength(5);
+    expect(factory.types()).toHaveLength(6);
   });
 
   it('rechaza un tipo repetido, uno sin `type` propio y uno desconocido', () => {

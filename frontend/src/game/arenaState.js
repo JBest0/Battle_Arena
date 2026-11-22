@@ -10,7 +10,10 @@
  *   targetPoints: number | null,    // (modo POINTS)
  *   players: [{ id, username, avatarUrl, x, y, score, color,
  *     slow,                        // segundos de ralentización que le quedan (0 = ninguna)
- *     risk }],                     // multiplicador del sector de riesgo donde está (1 = fuera)
+ *     risk,                        // multiplicador del sector de riesgo donde está (1 = fuera)
+ *     state,                       // 'normal' | 'frozen' (congelado por un guardián)
+ *     frozen }],                   // segundos de congelamiento que le quedan (0 = ninguno)
+ *   guardians: [{ id, x, y, extra, targetId }],  // extra: de la invasión; targetId: a quién persigue
  *   items: [{ id, x, y, bonus }],   // bonus: celda extra de un evento (lluvia de energía)
  *   events: [{                      // evento especial activo (a lo sumo uno), [] si no hay
  *     id, type, name, description, accent,   // accent: color #rrggbb
@@ -38,7 +41,8 @@ export function toHud(state) {
     winnerIds: state.winnerIds,
     events: state.events || [],
     obstacles: state.obstacles || [],
-    players: state.players.map(({ id, username, avatarUrl, score, color, slow, risk }) => ({
+    guardians: (state.guardians || []).length,
+    players: state.players.map(({ id, username, avatarUrl, score, color, slow, risk, frozen }) => ({
       id,
       username,
       avatarUrl,
@@ -46,6 +50,7 @@ export function toHud(state) {
       color,
       slow: slow || 0,
       risk: risk || 1,
+      frozen: frozen || 0,
     })),
   };
 }
