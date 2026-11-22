@@ -81,6 +81,8 @@ class ArenaEngine {
 
     this.status = 'COUNTDOWN';
     this.countdown = rules.countdownSeconds;
+    this.overtimeRemaining = null;
+    this.overtimeSeconds = rules.overtimeSeconds ?? 120;
     this.elapsed = 0;
     this.items = [];
     this.winnerIds = [];
@@ -200,6 +202,9 @@ class ArenaEngine {
     }
 
     this.elapsed += dt;
+    if (this.status === 'OVERTIME') {
+      this.overtimeRemaining = Math.max(0, this.overtimeRemaining - dt);
+    }
     this.events?.update(dt, this);
     this.guardians?.update(dt, this);
     this.movePlayers(dt);
@@ -525,18 +530,43 @@ class ArenaEngine {
     const targetReached =
       this.config.endMode === 'POINTS' && best >= this.config.targetPoints;
 
-    if (timeUp || targetReached) {
-      this.finish();
+    if (this.status === 'OVERTIME') {
+      const leaders = this.players.filter((player) => player.score === best);
+      if (leaders.length === 1) this.finish();
+      else if (this.overtimeRemaining <= 0) this.beginOvertime();
+      return;
     }
+
+    if (timeUp || targetReached) this.resolveRegulationFinish();
   }
 
-  // Termina la partida; ganan todos los que tengan el puntaje más alto (varios = empate).
+  resolveRegulationFinish() {
+    const best = Math.max(...this.players.map((player) => player.score));
+    const leaders = this.players.filter((player) => player.score === best);
+
+    if (leaders.length > 1) {
+      this.beginOvertime();
+      return;
+    }
+
+    this.finish();
+  }
+
+  beginOvertime() {
+    if (this.status === 'FINISHED') return;
+    this.status = 'OVERTIME';
+    this.overtimeRemaining = this.overtimeSeconds;
+  }
+
+  // Termina definitivamente la partida; ganan todos los que tengan el puntaje más alto
+  // (varios = empate, por ejemplo al cerrar por el límite máximo de seguridad).
   finish() {
     if (this.status === 'FINISHED') return;
 
     this.events?.finish(this);
     const best = Math.max(...this.players.map((player) => player.score));
     this.status = 'FINISHED';
+    this.overtimeRemaining = null;
     this.winnerIds = this.players
       .filter((player) => player.score === best)
       .map((player) => player.id);
@@ -546,6 +576,9 @@ class ArenaEngine {
     return {
       status: this.status,
       countdown: this.countdown,
+      elapsed: round(this.elapsed),
+      overtimeRemaining:
+        this.status === 'OVERTIME' ? Math.max(0, this.overtimeRemaining) : null,
       timeRemaining: this.timeRemaining,
       targetPoints:
         this.config.endMode === 'POINTS' ? this.config.targetPoints : null,

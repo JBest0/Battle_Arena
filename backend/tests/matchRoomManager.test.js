@@ -8,6 +8,7 @@ const RULES = {
   tickRate: 10,
   abandonSeconds: 5,
   maxMatchSeconds: 900,
+  overtimeSeconds: 0.1,
 };
 const MATCH = {
   id: 'm1',
@@ -90,6 +91,7 @@ describe('MatchRoomManager', () => {
     const { manager, emit, persistResult } = setup();
     manager.startMatch(MATCH);
     manager.socketJoined('m1');
+    manager.rooms.get('m1').engine.players[1].score = 1;
 
     await advance(4000);
 
@@ -114,6 +116,7 @@ describe('MatchRoomManager', () => {
     });
     manager.startMatch(MATCH);
     manager.socketJoined('m1');
+    manager.rooms.get('m1').engine.players[1].score = 1;
 
     await advance(4000);
 

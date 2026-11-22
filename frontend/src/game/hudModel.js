@@ -90,10 +90,14 @@ export function myStatus(hud, userId) {
 // ¿Quedan 10 s o menos? (el reloj se pone en alerta)
 export function isUrgent(hud, threshold = 10) {
   return (
-    hud.status === 'RUNNING' &&
-    hud.timeRemaining !== null &&
-    hud.timeRemaining !== undefined &&
-    hud.timeRemaining <= threshold
+    (hud.status === 'RUNNING' &&
+      hud.timeRemaining !== null &&
+      hud.timeRemaining !== undefined &&
+      hud.timeRemaining <= threshold) ||
+    (hud.status === 'OVERTIME' &&
+      hud.overtimeRemaining !== null &&
+      hud.overtimeRemaining !== undefined &&
+      hud.overtimeRemaining <= threshold)
   );
 }
 

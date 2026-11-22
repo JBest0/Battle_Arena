@@ -12,6 +12,7 @@ const RULES = {
   tickRate: 30,
   abandonSeconds: 30,
   maxMatchSeconds: 900,
+  overtimeSeconds: 0.1,
 };
 const USERS = {
   'token-a': { id: 'a', username: 'ana', verified: true },
@@ -159,6 +160,7 @@ describe('partida con jugadores simultáneos', () => {
 
     const startA = realtime.manager.snapshot(MATCH_ID).players[0];
     const startB = realtime.manager.snapshot(MATCH_ID).players[1];
+    realtime.manager.rooms.get(MATCH_ID).engine.players[1].score = 1;
     a.emit('player:input', { dx: 1, dy: 0 });
     b.emit('player:input', { dx: 0, dy: 1 });
 

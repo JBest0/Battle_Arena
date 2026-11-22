@@ -18,9 +18,21 @@ function matchStatus(match) {
 
 // Forma pública de una partida: lo que necesitan la sala de juego y la arena.
 function toMatchView(match) {
+  const players = match.participants.map((participant) => ({
+    id: participant.userId,
+    username: participant.user.username,
+    avatarUrl: participant.user.avatar.url,
+    score: participant.finalScore,
+  }));
+  const best = Math.max(0, ...players.map((player) => player.score));
+  const winnerIds = match.winnerId
+    ? [match.winnerId]
+    : players.filter((player) => player.score === best).map((player) => player.id);
+  const status = matchStatus(match);
+
   return {
     id: match.id,
-    status: matchStatus(match),
+    status,
     config: {
       endMode: match.endMode,
       durationSeconds: match.durationSeconds,
@@ -29,15 +41,10 @@ function toMatchView(match) {
     },
     scenarioId: match.scenarioId ?? null,
     createdById: match.createdById,
-    createdAt: match.createdAt,
     startedAt: match.startedAt,
     endedAt: match.endedAt,
-    players: match.participants.map((participant) => ({
-      id: participant.userId,
-      username: participant.user.username,
-      avatarUrl: participant.user.avatar.url,
-      score: participant.finalScore,
-    })),
+    players,
+    ...(status === 'FINISHED' ? { winnerIds } : {}),
   };
 }
 

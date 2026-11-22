@@ -911,6 +911,15 @@ Ambas siguen dentro de `<VerifiedRoute>` (CA-03.4).
 - No hay "salir de la sala de espera" ni expulsar jugadores.
 - El control físico ESP32 (módulo de hardware) está pendiente.
 
+### Prórroga y resultados
+
+- Si al agotarse el tiempo hay empate, la partida entra en estado `OVERTIME` durante
+  120 segundos y mantiene los puntajes acumulados.
+- Si persiste el empate al terminar una prórroga, comienza otra prórroga automáticamente.
+- Cuando queda un líder único, la partida finaliza y persiste el resultado una sola vez.
+- Al finalizar se presenta una pantalla diferenciada con ganador, podio disponible,
+  puntajes, participantes y duración.
+
 ## Escenarios
 
 Cada escenario es un archivo `.json` en `backend/src/scenarios/` (o en la carpeta de la

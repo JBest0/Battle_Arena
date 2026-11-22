@@ -27,6 +27,7 @@ export default function ArenaHud({
 }) {
   const ranked = rankPlayers(hud.players);
   const finished = hud.status === 'FINISHED';
+  const overtime = hud.status === 'OVERTIME';
   const isTime = config.endMode === 'TIME';
 
   return (
@@ -38,12 +39,16 @@ export default function ArenaHud({
         </div>
         <div className="arena-hud-stat">
           <span className="arena-hud-label">
-            {isTime ? 'Tiempo restante' : 'Puntos objetivo'}
+            {overtime ? 'Prórroga' : isTime ? 'Tiempo restante' : 'Puntos objetivo'}
           </span>
           <span
             className={`arena-hud-value arena-hud-value-big${isUrgent(hud) ? ' is-urgent' : ''}`}
           >
-            {isTime ? formatDuration(hud.timeRemaining) : hud.targetPoints}
+            {overtime
+              ? formatDuration(hud.overtimeRemaining)
+              : isTime
+                ? formatDuration(hud.timeRemaining)
+                : hud.targetPoints}
           </span>
         </div>
       </div>
@@ -51,6 +56,11 @@ export default function ArenaHud({
       {finished && (
         <p className="alert alert-success" role="status">
           Fin de la partida. {resultText(hud)}
+        </p>
+      )}
+      {overtime && (
+        <p className="alert alert-warning overtime-alert" role="status">
+          Empate. Prórroga de 2 minutos. Los puntajes se mantienen.
         </p>
       )}
 

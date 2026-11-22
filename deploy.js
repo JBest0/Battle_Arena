@@ -90,10 +90,11 @@ function findLanIp() {
   return candidates.find((ip) => ip.startsWith('10.') || ip.startsWith('172.'));
 }
 
-const mode = (process.argv[2] || 'local').toLowerCase();
+const mode = (process.argv[2] || 'lan').toLowerCase();
 
 if (!['local', 'lan', 'phone'].includes(mode)) {
-  console.error('Modo no válido. Usa: node deploy.js local');
+  console.error('Modo no válido. Usa: node deploy.js');
+  console.error('                 o: node deploy.js local');
   console.error('                 o: node deploy.js lan');
   console.error('                 o: node deploy.js lan 192.168.100.239');
   process.exit(1);
@@ -130,7 +131,23 @@ if (fs.existsSync(envPath)) {
   console.log('No existe backend/.env; se creó a partir de backend/.env.example.');
 }
 
-if (mode !== 'lan') {
+if (mode === 'lan') {
+  const profileCandidates = [
+    path.join(__dirname, 'backend', '.env.phone'),
+    path.join(__dirname, 'backend', '.env.local'),
+  ];
+  const profilePath = profileCandidates.find((candidate) => fs.existsSync(candidate));
+  if (profilePath) {
+    const profileError = validateProfile(profilePath);
+    if (profileError) {
+      console.error(`Perfil OAuth invalido: backend/${path.basename(profilePath)}`);
+      console.error(profileError);
+      process.exit(1);
+    }
+    envContent = applyProfile(envContent, profilePath);
+    console.log(`Perfil cargado: backend/${path.basename(profilePath)}`);
+  }
+} else {
   const profileName = mode === 'phone' ? '.env.phone' : '.env.local';
   const profilePath = path.join(__dirname, 'backend', profileName);
   if (fs.existsSync(profilePath)) {
@@ -212,6 +229,9 @@ console.log('Mailpit:          http://localhost:8025');
 
 if (isEasyLanMode) {
   console.log('\nDesde otra computadora, abre la URL de Aplicación.');
+  console.log('Callback de GitHub OAuth:');
+  console.log(`${frontendUrl}/api/auth/oauth/github/callback`);
+  console.log('Debe estar registrado exactamente en la aplicación OAuth de GitHub.');
   console.log('Si no carga, permite el puerto TCP 5173 en el firewall del servidor.');
 } else if (mode === 'phone') {
   console.log('\nGitHub OAuth móvil requiere un callback separado:');

@@ -58,6 +58,7 @@ const GAMEPLAY = {
   playerSpeed: 220, // unidades de arena por segundo
   itemsOnField: 4, // ítems simultáneos en la arena
   countdownSeconds: 5, // cuenta regresiva antes de empezar (da tiempo a que todos conecten)
+  overtimeSeconds: 120, // prórroga de dos minutos después de un empate
   tickRate: 30, // actualizaciones por segundo
   abandonSeconds: 30, // sin ningún jugador conectado: la partida se cierra
   maxMatchSeconds: 900, // tope de seguridad (sobre todo para el modo por puntos)

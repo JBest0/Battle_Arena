@@ -13,6 +13,7 @@ import ArenaHud from '../components/game/ArenaHud';
 import EventBanner from '../components/game/EventBanner';
 import HudStrip from '../components/game/HudStrip';
 import WaitingRoom from '../components/game/WaitingRoom';
+import MatchResults from '../components/game/MatchResults';
 import { describeConfig } from '../game/gameConfig';
 import { useMatch } from '../hooks/useMatch';
 import { useArenaSocket } from '../hooks/useArenaSocket';
@@ -102,6 +103,9 @@ function ArenaScreen({ match, arena, scenario, currentUserId }) {
         <HudStrip config={match.config} hud={hud} currentUserId={currentUserId} />
       )}
 
+      {hud && status === 'FINISHED' ? (
+        <MatchResults hud={hud} match={match} currentUserId={currentUserId} />
+      ) : (
       <div className="arena-layout">
         <div
           className={`arena-stage${hud?.events?.length ? ' arena-stage-event' : ''}`}
@@ -132,6 +136,7 @@ function ArenaScreen({ match, arena, scenario, currentUserId }) {
           />
         )}
       </div>
+      )}
     </div>
   );
 }
@@ -260,10 +265,30 @@ export default function ArenaPage() {
   }
 
   if (match.status === 'FINISHED') {
+    const elapsed = match.startedAt && match.endedAt
+      ? Math.max(0, Math.round((new Date(match.endedAt) - new Date(match.startedAt)) / 1000))
+      : 0;
+    const resultHud = {
+      status: 'FINISHED',
+      elapsed,
+      overtimeRemaining: null,
+      winnerIds: match.winnerIds || [],
+      players: match.players.map((player) => ({
+        ...player,
+        color: '#457b9d',
+        slow: 0,
+        risk: 1,
+        frozen: 0,
+      })),
+    };
+
     return (
-      <Message linkLabel="Volver a la sala de juego">
-        Esta partida ya terminó. Puedes ver tus resultados en tu perfil.
-      </Message>
+      <div className="arena-page">
+        <MatchResults hud={resultHud} match={match} currentUserId={user?.id} />
+        <p style={{ textAlign: 'center' }}>
+          <Link className="button" to="/lobby">Volver a la sala de juego</Link>
+        </p>
+      </div>
     );
   }
 

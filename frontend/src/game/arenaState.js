@@ -4,7 +4,7 @@
  *
  * ArenaState (evento `arena:state`, ~30 veces por segundo; se guarda en stateRef.current):
  * {
- *   status: 'COUNTDOWN' | 'RUNNING' | 'FINISHED',
+ *   status: 'COUNTDOWN' | 'RUNNING' | 'OVERTIME' | 'FINISHED',
  *   countdown: number,              // segundos que faltan para empezar (COUNTDOWN)
  *   timeRemaining: number | null,   // segundos (modo TIME)
  *   targetPoints: number | null,    // (modo POINTS)
@@ -35,6 +35,11 @@ export function toHud(state) {
   return {
     status: state.status,
     countdown: Math.ceil(state.countdown || 0),
+    overtimeRemaining:
+      state.overtimeRemaining === null || state.overtimeRemaining === undefined
+        ? null
+        : Math.ceil(state.overtimeRemaining),
+    elapsed: state.elapsed || 0,
     timeRemaining:
       state.timeRemaining === null ? null : Math.ceil(state.timeRemaining),
     targetPoints: state.targetPoints,

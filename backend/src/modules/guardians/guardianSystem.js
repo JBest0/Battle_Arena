@@ -167,6 +167,18 @@ class GuardianSystem {
     let grid = null;
 
     for (const guardian of this.guardians) {
+      // Si un obstáculo ya logró colocarse sobre el guardián, replantearlo antes de moverlo
+      // evita que permanezca dentro del muro más allá del tick actual.
+      grid = grid || buildGrid(engine);
+      const radius = engine.arena.collisionRadius ?? engine.arena.playerRadius;
+      if (engine.collides(guardian.x, guardian.y, radius - 0.5)) {
+        const anchor = nearestAnchor(grid, guardian.x, guardian.y, freeAnchors(grid));
+        if (anchor) {
+          Object.assign(guardian, centerOf(grid, anchor));
+          guardian.repath = 0;
+        }
+      }
+
       // Si su objetivo ya no se puede congelar (lo congeló otro guardián, o está en gracia),
       // busca a otro en este mismo paso en vez de esperar al próximo replanteo.
       if (guardian.targetId !== null && !targets.some((p) => p.id === guardian.targetId)) {
