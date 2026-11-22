@@ -10,6 +10,7 @@ class EnergyRainEvent extends SpecialEvent {
     this.dropped = 0;
     this.untilDrop = 0;
     this.dropEvery = Math.max(0.3, (this.durationSeconds * 0.7) / EXTRA_CELLS);
+    this.collected = [];
   }
 
   update(dt, engine) {
@@ -29,7 +30,11 @@ class EnergyRainEvent extends SpecialEvent {
 
   // eslint-disable-next-line class-methods-use-this
   params() {
-    return { extraCells: EXTRA_CELLS };
+    return { extraCells: EXTRA_CELLS, pointsPerCell: 1, collected: [...this.collected] };
+  }
+
+  recordCollection(itemId, playerId) {
+    this.collected.push({ itemId, playerId });
   }
 }
 

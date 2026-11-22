@@ -26,15 +26,25 @@ function errorText(err) {
   return err.response ? getErrorMessage(err) : 'No se pudo conectar con el servidor';
 }
 
-function ArenaScreen({ match, arena, scenario, currentUserId }) {
-  const { stateRef, hud, connection, error, sendInput } = useArenaSocket(match.id);
+function ArenaScreen({ match, arena, scenario, currentUserId, developerMode }) {
+  const { stateRef, hud, connection, error, sendInput, sendDevAction } = useArenaSocket(match.id);
   const status = hud?.status;
   const announcement = useEventAnnouncement(hud?.events);
   const [soundEnabled, setSound] = useState(isSoundEnabled);
+  const [devMessage, setDevMessage] = useState('');
 
   function toggleSound() {
     setSoundEnabled(!soundEnabled);
     setSound(!soundEnabled);
+  }
+
+  async function runDevAction(action) {
+    const response = await sendDevAction(action);
+    setDevMessage(
+      response.ok
+        ? 'Acción de prueba aplicada.'
+        : response.message || 'La acción de prueba fue rechazada.'
+    );
   }
 
   const inputEnabled = connection === 'connected' && status !== 'FINISHED';
@@ -101,6 +111,46 @@ function ArenaScreen({ match, arena, scenario, currentUserId }) {
 
       {hud && status !== 'COUNTDOWN' && (
         <HudStrip config={match.config} hud={hud} currentUserId={currentUserId} />
+      )}
+
+      {developerMode && (
+        <section className="dev-controls card" aria-label="Controles de desarrollo">
+          <div>
+            <h3>Modo desarrollo</h3>
+            <p>Controles disponibles solo para jugador1.</p>
+          </div>
+          <div className="dev-actions">
+            {[
+              ['reactor-overload', 'Sobrecarga'],
+              ['energy-rain', 'Lluvia'],
+              ['blackout', 'Apagón'],
+              ['alternate-route', 'Ruta alternativa'],
+              ['guardian-invasion', 'Invasión'],
+            ].map(([eventType, label]) => (
+              <button
+                key={eventType}
+                type="button"
+                className="button button-small"
+                onClick={() => runDevAction({ type: 'force-event', eventType })}
+              >
+                {label}
+              </button>
+            ))}
+            <button type="button" className="button button-small" onClick={() => runDevAction({ type: 'spawn-bonus' })}>
+              Celdas bonus
+            </button>
+            <button type="button" className="button button-small" onClick={() => runDevAction({ type: 'add-score', playerId: currentUserId, amount: 10 })}>
+              +10 puntos
+            </button>
+            <button type="button" className="button button-small" onClick={() => runDevAction({ type: 'overtime' })}>
+              Prórroga
+            </button>
+            <button type="button" className="button button-small" onClick={() => runDevAction({ type: 'finish' })}>
+              Finalizar
+            </button>
+          </div>
+          {devMessage && <p className="dev-message" role="status">{devMessage}</p>}
+        </section>
       )}
 
       {hud && status === 'FINISHED' ? (
@@ -306,6 +356,7 @@ export default function ArenaPage() {
       arena={options.arena}
       scenario={scenario}
       currentUserId={user?.id}
+      developerMode={Boolean(user?.devMode)}
     />
   );
 }

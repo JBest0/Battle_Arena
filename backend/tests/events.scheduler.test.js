@@ -127,11 +127,20 @@ describe('EventScheduler', () => {
       types: [eventType('doble', { multiplier: 2 })],
     });
 
-    expect(scheduler.modifiers()).toEqual({ pointMultiplier: 1 });
+    expect(scheduler.modifiers()).toEqual({
+      pointMultiplier: 1,
+      reactorDisabled: false,
+    });
     advance(10);
-    expect(scheduler.modifiers()).toEqual({ pointMultiplier: 2 });
+    expect(scheduler.modifiers()).toEqual({
+      pointMultiplier: 2,
+      reactorDisabled: false,
+    });
     advance(4);
-    expect(scheduler.modifiers()).toEqual({ pointMultiplier: 1 });
+    expect(scheduler.modifiers()).toEqual({
+      pointMultiplier: 1,
+      reactorDisabled: false,
+    });
   });
 
   it('omite los tipos que no pueden empezar y reprograma si no queda ninguno', () => {

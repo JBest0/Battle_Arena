@@ -82,8 +82,13 @@ async function verifySocketToken(token, userRepository = defaultUserRepository) 
   }
 
   await assertSessionIsCurrent(payload, userRepository);
+  const user = await userRepository.findById(payload.sub);
 
-  return { id: payload.sub, username: payload.username };
+  return {
+    id: payload.sub,
+    username: payload.username,
+    developerMode: Boolean(user?.devMode),
+  };
 }
 
 const requireAuth = createRequireAuth(defaultUserRepository);

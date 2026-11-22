@@ -28,6 +28,7 @@ model User {
   username      String   @unique
   email         String   @unique
   passwordHash  String?  @map("password_hash")
+  devMode       Boolean  @default(false) @map("dev_mode")
   emailVerified   Boolean   @default(false) @map("email_verified")
   displayName     String?   @map("display_name") @db.VarChar(40)
   bio             String?   @db.VarChar(200)

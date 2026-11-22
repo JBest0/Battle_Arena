@@ -47,6 +47,17 @@ afterEach(() => {
 });
 
 describe('MatchRoomManager', () => {
+  it('permite acciones de desarrollo sobre el motor activo', () => {
+    const { manager } = setup();
+    manager.startMatch(MATCH);
+
+    expect(manager.performDevAction('m1', { type: 'add-score', playerId: 'a', amount: 10 }).ok).toBe(true);
+    expect(manager.rooms.get('m1').engine.players[0].score).toBe(10);
+    expect(manager.performDevAction('m1', { type: 'overtime' }).ok).toBe(true);
+    expect(manager.snapshot('m1').status).toBe('OVERTIME');
+    manager.stopAll();
+  });
+
   it('avanza la partida y difunde el estado en cada tick', async () => {
     const { manager, emit } = setup();
     manager.startMatch(MATCH);

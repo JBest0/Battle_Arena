@@ -51,6 +51,19 @@ class EventScheduler {
     if (types.length > 1) types = types.filter((type) => type !== this.lastType);
     if (types.length === 0) return null;
 
+    const rainCount = this.records.filter((record) => record.type === 'energy-rain').length;
+    const guaranteedCount = engine.rules?.energyRainAppearances ?? 3;
+    if (
+      rainCount < guaranteedCount &&
+      engine.config?.endMode === 'TIME' &&
+      Number.isFinite(engine.config.durationSeconds) &&
+      engine.config.durationSeconds >= 120
+    ) {
+      const elapsedRatio = engine.elapsed / engine.config.durationSeconds;
+      const dueAt = (rainCount + 1) / (guaranteedCount + 1);
+      if (elapsedRatio >= dueAt && types.includes('energy-rain')) return 'energy-rain';
+    }
+
     const total = types.reduce((sum, type) => sum + this.factory.weight(type), 0);
     let roll = this.random() * total;
     for (const type of types) {
@@ -98,6 +111,45 @@ class EventScheduler {
     };
   }
 
+  force(type, engine) {
+    if (!this.factory.types().includes(type) || !this.factory.canStart(type, engine)) {
+      return false;
+    }
+
+    if (this.active) this.end(engine);
+
+    const event = this.factory.create(type, {
+      durationSeconds: this.durationSeconds,
+      random: this.random,
+    });
+    event.start(engine);
+
+    const EventClass = this.factory.get(type);
+    const record = {
+      id: `event-${this.nextId}`,
+      type,
+      startedAt: engine.elapsed,
+      durationSeconds: this.durationSeconds,
+      endedAt: null,
+      params: event.params(),
+    };
+    this.nextId += 1;
+    this.records.push(record);
+    this.lastType = type;
+    this.active = {
+      event,
+      record,
+      remaining: this.durationSeconds,
+      meta: {
+        label: EventClass.label,
+        description: EventClass.description,
+        accent: EventClass.accent,
+      },
+    };
+
+    return true;
+  }
+
   // Revierte el evento activo (al vencer su duración o al terminar la partida).
   end(engine) {
     if (!this.active) return;
@@ -112,9 +164,16 @@ class EventScheduler {
     this.end(engine);
   }
 
+  recordBonusCollection(itemId, playerId) {
+    if (!this.active || this.active.record.type !== 'energy-rain') return;
+    if (typeof this.active.event.recordCollection === 'function') {
+      this.active.event.recordCollection(itemId, playerId);
+    }
+  }
+
   // Modificadores de reglas que aportan los eventos activos.
   modifiers() {
-    const modifiers = { pointMultiplier: 1 };
+    const modifiers = { pointMultiplier: 1, reactorDisabled: false };
     if (this.active) this.active.event.modify(modifiers);
 
     return modifiers;
