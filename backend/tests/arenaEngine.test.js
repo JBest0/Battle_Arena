@@ -208,6 +208,8 @@ describe('ArenaEngine.snapshot', () => {
       score: 0,
       slow: 0,
       risk: 1,
+      state: 'normal',
+      frozen: 0,
     });
   });
 });

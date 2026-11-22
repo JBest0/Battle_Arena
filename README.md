@@ -1041,9 +1041,10 @@ un evento a la vez y nunca sale el mismo tipo dos veces seguidas.
 | `energy-rain` | Lluvia de energía: caen hasta 8 celdas extra (azules); las que nadie recoge se retiran al terminar |
 | `blackout` | Apagón: una mitad de la arena queda a oscuras y el jugador conserva una pequeña luz |
 | `alternate-route` | Ruta alternativa: se abren 2 huecos de 2 celdas en muros de 1 o 2 de grosor; al terminar se cierran, pero nunca encima de un jugador (esperan a que quede libre) |
+| `guardian-invasion` | Invasión de guardianes: aparecen 5 guardianes extra (mismas reglas que los permanentes, lejos de los jugadores); desaparecen al terminar |
 
 La ruta alternativa necesita un escenario con muros; en un campo abierto simplemente no sale.
-La invasión de guardianes (US-036) queda pendiente hasta que existan los guardianes en el motor.
+La invasión de guardianes solo sale en partidas que tienen guardianes (ver la sección siguiente).
 
 Parámetros (variables de entorno opcionales del backend, Anexo B del ERS):
 
@@ -1051,6 +1052,7 @@ Parámetros (variables de entorno opcionales del backend, Anexo B del ERS):
 | --- | --- | --- | --- |
 | `EVENT_INTERVAL_SECONDS` | 45 | 15 – 180 | Tiempo medio entre eventos (el real es de 0,5 a 1,5 veces este valor) |
 | `EVENT_DURATION_SECONDS` | 15 | 5 – 60 | Duración de cada evento |
+| `GUARDIAN_FREEZE_SECONDS` | 3 | 1 – 15 | Segundos que queda congelado un jugador al que alcanza un guardián |
 
 ### Código (`backend/src/modules/events/`)
 
@@ -1097,6 +1099,22 @@ regresiva.
 El sonido se sintetiza en el navegador (Web Audio): no hay archivos de audio ni licencias que
 documentar. El botón «Sonido» del panel lo silencia y se recuerda en `localStorage`. El
 apagón es solo visual: el servidor decide la región y el cliente la oscurece.
+
+## Guardianes y estados del jugador
+
+Cada partida con escenario tiene **4 guardianes permanentes**, uno en el punto medio de cada
+borde de la arena (los inicios de los jugadores están en las esquinas, así que ninguno nace
+sobre un jugador). Cada guardián persigue al jugador **más cercano por camino** (rodea muros y
+obstáculos cerrados) que no esté congelado, a la mitad de la velocidad del jugador. Al tocarlo
+lo **congela** `GUARDIAN_FREEZE_SECONDS` segundos: no se mueve ni recoge celdas, y recupera el
+control solo al terminar. Tras descongelarse tiene 2 s de gracia en los que los guardianes lo
+ignoran. Los guardianes nunca cambian ningún puntaje.
+
+Todo lo decide el servidor (`ArenaEngine`); el cliente solo dibuja. En cada `arena:state` viaja
+`guardians` (`{ id, x, y, extra, targetId }`) y, por jugador, `state` (`normal` | `frozen`) y
+`frozen` (segundos de congelamiento que le quedan). Reglas completas, valores y casos límite en
+[`docs/guardianes.md`](docs/guardianes.md). Código: `backend/src/modules/guardians/`
+(`guardianSystem.js`, `guardianPathing.js`) y `backend/src/modules/realtime/playerStates.js`.
 
 ## Interfaz e indicadores
 

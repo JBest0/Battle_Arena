@@ -212,6 +212,102 @@ function drawRiskBadge(ctx, player, radius, color) {
   ctx.fillText(`x${player.risk}`, x, y + 0.5);
 }
 
+// Guardián: casco hexagonal oscuro con un ojo rojo que mira hacia su objetivo. Los de la
+// invasión llevan además un aro discontinuo del color del evento.
+const GUARDIAN_RADIUS = 12;
+function drawGuardian(ctx, guardian, target, time, accent) {
+  const { x, y } = guardian;
+  const pulse = 0.5 + 0.5 * Math.sin(time / 200 + x * 0.05);
+
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + GUARDIAN_RADIUS * 0.9, GUARDIAN_RADIUS * 0.9, GUARDIAN_RADIUS * 0.32, 0, 0, TAU);
+  ctx.fill();
+
+  ctx.fillStyle = `rgba(255, 59, 92, ${0.12 + 0.12 * pulse})`;
+  ctx.beginPath();
+  ctx.arc(x, y, GUARDIAN_RADIUS + 7, 0, TAU);
+  ctx.fill();
+
+  ctx.beginPath();
+  for (let i = 0; i < 6; i += 1) {
+    const angle = (TAU / 6) * i - Math.PI / 2;
+    const px = x + Math.cos(angle) * (GUARDIAN_RADIUS + 2);
+    const py = y + Math.sin(angle) * (GUARDIAN_RADIUS + 2);
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fillStyle = '#1b1030';
+  ctx.strokeStyle = '#ff3b5c';
+  ctx.lineWidth = 2.5;
+  ctx.fill();
+  ctx.stroke();
+
+  let lookX = 0;
+  let lookY = 0;
+  if (target) {
+    const length = Math.hypot(target.x - x, target.y - y) || 1;
+    lookX = ((target.x - x) / length) * 3.5;
+    lookY = ((target.y - y) / length) * 3.5;
+  }
+  ctx.fillStyle = '#ff3b5c';
+  ctx.beginPath();
+  ctx.arc(x + lookX, y + lookY, 4 + pulse, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = '#ffd6dd';
+  ctx.beginPath();
+  ctx.arc(x + lookX, y + lookY, 1.6, 0, TAU);
+  ctx.fill();
+
+  if (guardian.extra) {
+    ctx.save();
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
+    ctx.lineDashOffset = -time / 80;
+    ctx.beginPath();
+    ctx.arc(x, y, GUARDIAN_RADIUS + 9, 0, TAU);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// Jugador congelado: bloque de hielo translúcido con destellos y los segundos que le quedan.
+function drawFrozen(ctx, player, radius) {
+  const { x, y } = player;
+  const half = radius + 9;
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(155, 231, 255, 0.45)';
+  ctx.strokeStyle = 'rgba(235, 250, 255, 0.95)';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.rect(x - half, y - half, half * 2, half * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x - half + 4, y - half + 10);
+  ctx.lineTo(x - 2, y - 3);
+  ctx.moveTo(x + half - 5, y + half - 9);
+  ctx.lineTo(x + 3, y + 4);
+  ctx.stroke();
+
+  ctx.font = '800 13px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = 'rgba(8, 40, 70, 0.9)';
+  ctx.lineJoin = 'round';
+  const label = `❄ ${Math.ceil(player.frozen)}`;
+  ctx.strokeText(label, x, y - half - 9);
+  ctx.fillStyle = '#e8f9ff';
+  ctx.fillText(label, x, y - half - 9);
+  ctx.restore();
+}
+
 function drawPlayer(ctx, player, radius) {
   const { x, y } = player;
 
@@ -295,7 +391,15 @@ function draw(ctx, canvas, state, view) {
     if (player.id === currentUserId) drawLocalRing(ctx, player, arena.playerRadius, time);
     if (player.slow > 0) drawSlowRing(ctx, player, arena.playerRadius, palette.trap, time);
     drawPlayer(ctx, player, arena.playerRadius);
+    if (player.frozen > 0) drawFrozen(ctx, player, arena.playerRadius);
     if (player.risk > 1) drawRiskBadge(ctx, player, arena.playerRadius, palette.riskZone);
+  }
+
+  for (const guardian of state.guardians || []) {
+    const target = guardian.targetId
+      ? state.players.find((player) => player.id === guardian.targetId)
+      : null;
+    drawGuardian(ctx, guardian, target, time, accent);
   }
 
   if (event?.params?.region) {
@@ -426,7 +530,7 @@ export default function ArenaCanvas({ stateRef, arena, scenario = null, currentU
       className="arena-canvas"
       style={{ aspectRatio: `${arena.width} / ${arena.height}` }}
       role="img"
-      aria-label="Arena de juego con los jugadores y los puntos por recoger"
+      aria-label="Arena de juego con los jugadores, los guardianes y los puntos por recoger"
     >
       Tu navegador no puede mostrar la arena.
     </canvas>

@@ -35,6 +35,24 @@ const EVENT_LIMITS = {
 // RANDOM_WALL_INTERVAL_SECONDS.
 const RANDOM_WALL_LIMITS = { intervalSeconds: { min: 5, max: 60, default: 10 } };
 
+// Guardianes (US-21): cuántos segundos queda congelado un jugador al que alcanza uno.
+// Se puede cambiar con GUARDIAN_FREEZE_SECONDS.
+const GUARDIAN_LIMITS = { freezeSeconds: { min: 1, max: 15, default: 3 } };
+
+// Reglas de los guardianes (US-21 y evento de invasión, US-22). Van aparte de GAMEPLAY y el
+// motor solo los crea si recibe `rules.guardians`; así las partidas sin esta sección (y las
+// pruebas del motor que no tratan de guardianes) siguen igual.
+const GUARDIANS = {
+  count: 4, // guardianes permanentes, uno en cada extremo (punto medio de cada borde)
+  speed: 110, // unidades de arena por segundo (la mitad que el jugador: se les puede huir)
+  freezeSeconds: GUARDIAN_LIMITS.freezeSeconds.default, // congelamiento al tocar a un jugador
+  graceSeconds: 2, // tras descongelarse el jugador es inmune y los guardianes lo ignoran
+  touchRadius: 20, // distancia entre centros a la que un guardián "toca" a un jugador
+  repathSeconds: 0.2, // cada cuánto recalculan objetivo y ruta
+  invasionCount: 5, // guardianes extra del evento "invasión de guardianes"
+  invasionMinDistance: 150, // los extra no aparecen a menos de esto de un jugador
+};
+
 // Reglas de la partida en curso (las usa el motor de tiempo real).
 const GAMEPLAY = {
   playerSpeed: 220, // unidades de arena por segundo
@@ -92,6 +110,8 @@ module.exports = {
   END_MODES,
   GAME_LIMITS,
   EVENT_LIMITS,
+  GUARDIAN_LIMITS,
+  GUARDIANS,
   RANDOM_WALL_LIMITS,
   MIN_PLAYERS_TO_START,
   OPEN_MATCH_MAX_AGE_MINUTES,

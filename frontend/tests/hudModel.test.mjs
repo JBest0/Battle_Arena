@@ -9,6 +9,7 @@ import {
   summarizeObstacles,
   obstacleAlerts,
   scenarioLegend,
+  guardianLegend,
   liveText,
 } from '../src/game/hudModel.js';
 import { toHud } from '../src/game/arenaState.js';
@@ -162,10 +163,30 @@ test('toHud conserva los efectos de cada jugador y los obstáculos', () => {
 
   assert.equal(hud.timeRemaining, 42);
   assert.deepEqual(hud.players[0], {
-    id: 'a', username: 'ana', avatarUrl: '/a.png', score: 2, color: '#f00', slow: 1.5, risk: 3,
+    id: 'a', username: 'ana', avatarUrl: '/a.png', score: 2, color: '#f00', slow: 1.5, risk: 3, frozen: 0,
   });
   assert.equal(hud.players[1].slow, 0);
   assert.equal(hud.players[1].risk, 1);
   assert.equal(hud.obstacles.length, 1);
+  assert.equal(hud.guardians, 0);
+  assert.equal(toHud({ status: 'RUNNING', players: [], winnerIds: [], guardians: [{}, {}] }).guardians, 2);
   assert.deepEqual(toHud({ status: 'RUNNING', players: [], winnerIds: [], timeRemaining: null }).obstacles, []);
+});
+
+test('myEffects muestra "Congelado" con los segundos que quedan, antes que lo demás', () => {
+  const me = player('a', 0, { frozen: 2.1, slow: 1 });
+  const [first, second] = myEffects(me);
+
+  assert.deepEqual(first, { id: 'frozen', label: 'Congelado', detail: '3 s', tone: 'frozen' });
+  assert.equal(second.id, 'slow');
+  assert.deepEqual(myEffects(player('a', 0, { frozen: 0 })), []);
+});
+
+test('guardianLegend solo aparece si hay guardianes en la partida', () => {
+  assert.equal(guardianLegend(0), null);
+  assert.equal(guardianLegend(undefined), null);
+
+  const entry = guardianLegend(4);
+  assert.equal(entry.id, 'guardian');
+  assert.match(entry.live, /4/);
 });

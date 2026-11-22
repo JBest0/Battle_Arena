@@ -1,5 +1,5 @@
 const config = require('../../config');
-const { GAMEPLAY, ARENA } = require('../game/game.config');
+const { GAMEPLAY, GUARDIANS, ARENA } = require('../game/game.config');
 const { createRealtime } = require('./realtime.socket');
 const { createDefaultEventFactory } = require('../events/eventFactory');
 
@@ -31,6 +31,8 @@ function startRealtime(server) {
         eventIntervalSeconds: config.eventIntervalSeconds,
         eventDurationSeconds: config.eventDurationSeconds,
         randomWallIntervalSeconds: config.randomWallIntervalSeconds,
+        // Guardianes (US-21): permanentes y los de la invasión (US-22).
+        guardians: { ...GUARDIANS, freezeSeconds: config.guardianFreezeSeconds },
       },
       // Eventos especiales (US-22): un tipo nuevo se registra en modules/events/types.
       eventFactory: createDefaultEventFactory(),

@@ -107,3 +107,31 @@ test('el color de los puntos usa el del evento activo cuando no hay sector', () 
 
   assert.equal(effects.floats[0].color, '#4cc9f0');
 });
+
+test('trackEffects marca cuando un guardián congela y cuando se descongela', () => {
+  const effects = new EffectsLayer({ random: seeded() });
+  const previous = new Map();
+  const options = { currentUserId: 'a', palette, accent: null };
+  const state = (a, b) => ({
+    players: [
+      { id: 'a', x: 10, y: 10, score: 0, slow: 0, risk: 1, frozen: a },
+      { id: 'b', x: 90, y: 90, score: 0, slow: 0, risk: 1, frozen: b },
+    ],
+  });
+
+  trackEffects(effects, previous, state(0, 0), options);
+  assert.equal(effects.size, 0);
+
+  // Beto se congela (solo ráfaga) y Ana también (con "¡Congelado!")
+  trackEffects(effects, previous, state(3, 3), options);
+  assert.deepEqual(effects.floats.map((f) => f.text), ['¡Congelado!']);
+
+  // mientras sigue congelado no se repite
+  const before = effects.size;
+  trackEffects(effects, previous, state(2, 2), options);
+  assert.equal(effects.size, before);
+
+  // al descongelarse: "¡Libre!" solo para el jugador local
+  trackEffects(effects, previous, state(0, 0), options);
+  assert.deepEqual(effects.floats.map((f) => f.text), ['¡Congelado!', '¡Libre!']);
+});

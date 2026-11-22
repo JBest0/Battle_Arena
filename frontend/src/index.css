@@ -1508,6 +1508,11 @@ body {
   color: #b3261e;
 }
 
+.status-chip-frozen {
+  background-color: #e0f4ff;
+  color: #0b5a85;
+}
+
 .status-chip-risk {
   background-color: #ffe3ea;
   color: #b0123f;
@@ -1610,6 +1615,12 @@ body {
 .legend-swatch-corridor,
 .legend-swatch-wall {
   background-color: var(--swatch);
+}
+
+.legend-swatch-guardian {
+  --swatch: #ff3b5c;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 45%, #ff3b5c 0 3px, #1b1030 4px);
 }
 
 .legend-swatch-barrier {

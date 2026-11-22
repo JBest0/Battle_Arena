@@ -5,7 +5,7 @@ Este archivo lista de dónde sale cada recurso que ve u oye el jugador.
 
 | Recurso | Origen | Licencia |
 | --- | --- | --- |
-| Arena: piso, muros, reactor, terminales, trampas, sectores de riesgo, obstáculos, celdas, personajes, efectos y viñeta | Se dibujan con código en un `<canvas>` (`frontend/src/game/scenarioRender.js`, `frontend/src/components/game/ArenaCanvas.jsx`, `frontend/src/game/effects.js`). No hay imágenes ni sprites de terceros | Autoría del equipo (licencia del proyecto) |
+| Arena: piso, muros, reactor, terminales, trampas, sectores de riesgo, obstáculos, celdas, personajes, guardianes, bloque de hielo del jugador congelado, efectos y viñeta | Se dibujan con código en un `<canvas>` (`frontend/src/game/scenarioRender.js`, `frontend/src/components/game/ArenaCanvas.jsx`, `frontend/src/game/effects.js`). No hay imágenes ni sprites de terceros | Autoría del equipo (licencia del proyecto) |
 | Miniaturas de escenario | Mismo código de dibujo, sobre un `<canvas>` pequeño | Autoría del equipo |
 | Interfaz (HUD, marcador, leyenda, anuncios) | HTML y CSS propios (`frontend/src/index.css` y componentes React) | Autoría del equipo |
 | Tipografía | Fuentes del sistema (`system-ui`); no se descarga ni se incluye ninguna fuente | No aplica |

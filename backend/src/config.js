@@ -1,6 +1,10 @@
 const path = require('path');
 const { z } = require('zod');
-const { EVENT_LIMITS, RANDOM_WALL_LIMITS } = require('./modules/game/game.config');
+const {
+  EVENT_LIMITS,
+  GUARDIAN_LIMITS,
+  RANDOM_WALL_LIMITS,
+} = require('./modules/game/game.config');
 
 require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 
@@ -39,6 +43,12 @@ const envSchema = z.object({
     .min(RANDOM_WALL_LIMITS.intervalSeconds.min)
     .max(RANDOM_WALL_LIMITS.intervalSeconds.max)
     .default(RANDOM_WALL_LIMITS.intervalSeconds.default),
+  // Guardianes: segundos que queda congelado un jugador al que alcanza uno.
+  GUARDIAN_FREEZE_SECONDS: z.coerce
+    .number()
+    .min(GUARDIAN_LIMITS.freezeSeconds.min)
+    .max(GUARDIAN_LIMITS.freezeSeconds.max)
+    .default(GUARDIAN_LIMITS.freezeSeconds.default),
   GITHUB_CLIENT_ID: z.string().optional(),
   GITHUB_CLIENT_SECRET: z.string().optional(),
   OAUTH_REDIRECT_URI: z.string().url('OAUTH_REDIRECT_URI debe ser una URL válida').optional(),
@@ -73,6 +83,7 @@ module.exports = {
   eventIntervalSeconds: env.EVENT_INTERVAL_SECONDS,
   eventDurationSeconds: env.EVENT_DURATION_SECONDS,
   randomWallIntervalSeconds: env.RANDOM_WALL_INTERVAL_SECONDS,
+  guardianFreezeSeconds: env.GUARDIAN_FREEZE_SECONDS,
   githubClientId: env.GITHUB_CLIENT_ID || '',
   githubClientSecret: env.GITHUB_CLIENT_SECRET || '',
   oauthRedirectUri: env.OAUTH_REDIRECT_URI || '',

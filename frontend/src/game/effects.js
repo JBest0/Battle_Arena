@@ -102,10 +102,14 @@ export class EffectsLayer {
 
 /**
  * Compara el estado nuevo con el anterior y lanza los efectos que correspondan.
- * `previous` es un Map(id -> { score, slow }) que esta función mantiene al día.
+ * `previous` es un Map(id -> { score, slow, frozen }) que esta función mantiene al día.
  * - Puntaje que sube: ráfaga y "+N" en el color de quien gana más (sector de riesgo o evento).
  * - Quien pasa a estar ralentizado: ráfaga de polvo y, si es el jugador local, "¡Frenado!".
+ * - Quien lo congela un guardián: ráfaga de hielo ("¡Congelado!" al jugador local); al
+ *   descongelarse, ráfaga y "¡Libre!" (solo local).
  */
+export const FREEZE_COLOR = '#9be7ff';
+
 export function trackEffects(effects, previous, state, { currentUserId, palette, accent }) {
   for (const player of state.players) {
     const before = previous.get(player.id);
@@ -126,6 +130,22 @@ export function trackEffects(effects, previous, state, { currentUserId, palette,
       }
     }
 
-    previous.set(player.id, { score: player.score, slow: player.slow || 0 });
+    const frozen = player.frozen || 0;
+    if (before) {
+      const beforeFrozen = before.frozen || 0;
+      if (beforeFrozen <= 0 && frozen > 0) {
+        effects.burst(player.x, player.y, FREEZE_COLOR, 16);
+        if (player.id === currentUserId) {
+          effects.float(player.x, player.y - 44, '¡Congelado!', FREEZE_COLOR, 1.2);
+        }
+      } else if (beforeFrozen > 0 && frozen <= 0) {
+        effects.burst(player.x, player.y, '#ffffff', 10);
+        if (player.id === currentUserId) {
+          effects.float(player.x, player.y - 36, '¡Libre!', '#ffffff', 1);
+        }
+      }
+    }
+
+    previous.set(player.id, { score: player.score, slow: player.slow || 0, frozen });
   }
 }
