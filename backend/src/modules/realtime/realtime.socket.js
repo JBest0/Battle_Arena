@@ -103,6 +103,21 @@ function createRealtime({
       manager.setInput(matchId, socket.user.id, Number(payload?.dx), Number(payload?.dy));
     });
 
+    socket.on('dev:action', (action, ack) => {
+      const reply = typeof ack === 'function' ? ack : () => {};
+      const matchId = socket.data.matchId;
+      if (!matchId) return reply(failure('NOT_IN_MATCH', 'No estás en una partida'));
+      if (!socket.user.developerMode) {
+        return reply(failure('FORBIDDEN', 'Modo desarrollador no autorizado'));
+      }
+
+      const result = manager.performDevAction(matchId, action);
+      if (!result.ok) return reply(failure(result.code, 'Acción de desarrollo rechazada'));
+
+      io.to(roomName(matchId)).emit('arena:state', result.state);
+      return reply({ ok: true, state: result.state });
+    });
+
     socket.on('disconnect', () => {
       const { matchId } = socket.data;
       if (!matchId) return;

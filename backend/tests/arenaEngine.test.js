@@ -134,6 +134,61 @@ describe('ArenaEngine: puntos', () => {
 });
 
 describe('ArenaEngine: fin de la partida', () => {
+  it('un empate inicia una prórroga de dos minutos y conserva los puntajes', () => {
+    const engine = createEngine(
+      TIME_CONFIG,
+      sequence([0.5, 0.5])
+    );
+    engine.rules.overtimeSeconds = 120;
+    startRunning(engine);
+    player(engine, 'a').score = 2;
+    player(engine, 'b').score = 2;
+
+    engine.finishIfNeeded = engine.finishIfNeeded.bind(engine);
+    engine.elapsed = 10;
+
+    engine.finishIfNeeded();
+
+    expect(engine.status).toBe('OVERTIME');
+    expect(engine.overtimeRemaining).toBe(120);
+    expect(player(engine, 'a').score).toBe(2);
+    expect(player(engine, 'b').score).toBe(2);
+  });
+
+  it('desempata durante la prórroga y termina con un ganador único', () => {
+    const engine = createEngine(
+      { endMode: 'TIME', durationSeconds: 10, targetPoints: null },
+      sequence([0.5, 0.5])
+    );
+    engine.rules.overtimeSeconds = 1;
+    startRunning(engine);
+    player(engine, 'a').score = 2;
+    player(engine, 'b').score = 2;
+    engine.beginOvertime();
+
+    player(engine, 'b').score = 3;
+    engine.step(0.1);
+
+    expect(engine.status).toBe('FINISHED');
+    expect(engine.winnerIds).toEqual(['b']);
+  });
+
+  it('si sigue empatada al terminar la prórroga, empieza otra', () => {
+    const engine = createEngine(
+      { endMode: 'TIME', durationSeconds: 10, targetPoints: null },
+      sequence([0.5, 0.5])
+    );
+    engine.overtimeSeconds = 0.1;
+    startRunning(engine);
+    player(engine, 'a').score = 2;
+    player(engine, 'b').score = 2;
+    engine.beginOvertime();
+
+    engine.step(0.2);
+
+    expect(engine.status).toBe('OVERTIME');
+    expect(engine.overtimeRemaining).toBe(0.1);
+  });
   it('modo TIME termina al agotarse el tiempo y gana quien tenga más puntos', () => {
     const engine = createEngine(TIME_CONFIG);
     startRunning(engine);

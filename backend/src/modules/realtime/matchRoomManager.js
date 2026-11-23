@@ -71,6 +71,59 @@ class MatchRoomManager {
     this.rooms.get(matchId)?.engine.setInput(userId, dx, dy);
   }
 
+  performDevAction(matchId, action) {
+    const room = this.rooms.get(matchId);
+    if (!room) return { ok: false, code: 'MATCH_NOT_ACTIVE' };
+
+    const engine = room.engine;
+    if (action?.type === 'force-event') {
+      const allowed = [
+        'reactor-overload',
+        'energy-rain',
+        'blackout',
+        'alternate-route',
+        'guardian-invasion',
+      ];
+      if (!allowed.includes(action.eventType)) {
+        return { ok: false, code: 'VALIDATION_ERROR' };
+      }
+      return engine.forceEvent(action.eventType)
+        ? { ok: true, state: engine.snapshot() }
+        : { ok: false, code: 'EVENT_NOT_AVAILABLE' };
+    }
+
+    if (action?.type === 'finish') {
+      engine.finish();
+      return { ok: true, state: engine.snapshot() };
+    }
+
+    if (action?.type === 'overtime') {
+      engine.beginOvertime();
+      return { ok: true, state: engine.snapshot() };
+    }
+
+    if (action?.type === 'set-score') {
+      if (!engine.devSetScore(action.playerId, Number(action.score))) {
+        return { ok: false, code: 'VALIDATION_ERROR' };
+      }
+      return { ok: true, state: engine.snapshot() };
+    }
+
+    if (action?.type === 'add-score') {
+      if (!engine.devAddScore(action.playerId, Number(action.amount))) {
+        return { ok: false, code: 'VALIDATION_ERROR' };
+      }
+      return { ok: true, state: engine.snapshot() };
+    }
+
+    if (action?.type === 'spawn-bonus') {
+      engine.spawnBonusItem();
+      return { ok: true, state: engine.snapshot() };
+    }
+
+    return { ok: false, code: 'VALIDATION_ERROR' };
+  }
+
   socketJoined(matchId) {
     const room = this.rooms.get(matchId);
     if (room) room.connections += 1;

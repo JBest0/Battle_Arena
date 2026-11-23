@@ -375,7 +375,7 @@ function draw(ctx, canvas, state, view) {
     drawObstacles(ctx, state.obstacles, arena.cellSize, palette, time, appear);
   }
   if (event?.type === 'reactor-overload' && reactor) {
-    drawReactorPulse(ctx, reactor, arena.cellSize, accent, time);
+    drawReactorPulse(ctx, reactor, arena.cellSize, event.params?.reactorDisabled ? '#ff4d4d' : accent, time);
   }
 
   // Las celdas extra de la lluvia de energía se distinguen de las normales.

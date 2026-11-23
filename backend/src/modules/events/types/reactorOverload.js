@@ -7,17 +7,18 @@ const MULTIPLIER = 2;
 class ReactorOverloadEvent extends SpecialEvent {
   modify(modifiers) {
     modifiers.pointMultiplier *= MULTIPLIER;
+    modifiers.reactorDisabled = true;
   }
 
   // eslint-disable-next-line class-methods-use-this
   params() {
-    return { multiplier: MULTIPLIER };
+    return { multiplier: MULTIPLIER, reactorDisabled: true };
   }
 }
 
 ReactorOverloadEvent.type = 'reactor-overload';
 ReactorOverloadEvent.label = 'Sobrecarga del reactor';
-ReactorOverloadEvent.description = 'Las celdas de energía valen el doble.';
+ReactorOverloadEvent.description = 'Las celdas valen el doble y el reactor queda desactivado.';
 ReactorOverloadEvent.accent = '#ff6b35';
 
 module.exports = { ReactorOverloadEvent, MULTIPLIER };

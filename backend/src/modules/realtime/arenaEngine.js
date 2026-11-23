@@ -81,6 +81,8 @@ class ArenaEngine {
 
     this.status = 'COUNTDOWN';
     this.countdown = rules.countdownSeconds;
+    this.overtimeRemaining = null;
+    this.overtimeSeconds = rules.overtimeSeconds ?? 120;
     this.elapsed = 0;
     this.items = [];
     this.winnerIds = [];
@@ -200,6 +202,9 @@ class ArenaEngine {
     }
 
     this.elapsed += dt;
+    if (this.status === 'OVERTIME') {
+      this.overtimeRemaining = Math.max(0, this.overtimeRemaining - dt);
+    }
     this.events?.update(dt, this);
     this.guardians?.update(dt, this);
     this.movePlayers(dt);
@@ -254,9 +259,11 @@ class ArenaEngine {
   // Cada ítem es del jugador más cercano que lo toque; si hay empate, del primero en la lista.
   collectItems() {
     const reach = this.arena.playerRadius + this.arena.itemRadius;
-    // Cada celda vale 1 punto, multiplicado por los eventos activos (sobrecarga: x2) y por
-    // el sector de riesgo donde está quien la recoge.
-    const eventMultiplier = this.events ? this.events.modifiers().pointMultiplier : 1;
+    // Cada celda vale 1 punto, multiplicado por los eventos activos y por el sector de riesgo.
+    const modifiers = this.events
+      ? this.events.modifiers()
+      : { pointMultiplier: 1, reactorDisabled: false };
+    const eventMultiplier = modifiers.pointMultiplier;
 
     this.items = this.items.filter((item) => {
       let closest = null;
@@ -274,11 +281,31 @@ class ArenaEngine {
       }
 
       if (closest) {
-        closest.score += eventMultiplier * closest.risk;
+        if (modifiers.reactorDisabled && this.playerInReactor(closest)) return true;
+
+        const points = item.bonus ? (item.bonusPoints || 1) : eventMultiplier * closest.risk;
+        closest.score += points;
+        if (item.bonus) this.events?.recordBonusCollection(item.id, closest.id);
         return false;
       }
       return true;
     });
+  }
+
+  playerInReactor(player) {
+    if (!this.scenario?.reactor) return false;
+
+    const { col, row, cols, rows } = this.scenario.reactor;
+    const size = this.scenario.cellSize;
+    const playerCol = Math.floor(player.x / size);
+    const playerRow = Math.floor(player.y / size);
+
+    return (
+      playerCol >= col &&
+      playerCol < col + cols &&
+      playerRow >= row &&
+      playerRow < row + rows
+    );
   }
 
   // Los ítems aparecen en las celdas "C" del escenario (o en un punto libre al azar si
@@ -302,7 +329,13 @@ class ArenaEngine {
   // para poder retirarla cuando el evento termina.
   spawnBonusItem() {
     const spot = this.pickItemSpot();
-    this.items.push({ id: `item-${this.nextItemId}`, x: spot.x, y: spot.y, bonus: true });
+    this.items.push({
+      id: `item-${this.nextItemId}`,
+      x: spot.x,
+      y: spot.y,
+      bonus: true,
+      bonusPoints: 1,
+    });
     this.nextItemId += 1;
   }
 
@@ -525,18 +558,62 @@ class ArenaEngine {
     const targetReached =
       this.config.endMode === 'POINTS' && best >= this.config.targetPoints;
 
-    if (timeUp || targetReached) {
-      this.finish();
+    if (this.status === 'OVERTIME') {
+      const leaders = this.players.filter((player) => player.score === best);
+      if (leaders.length === 1) this.finish();
+      else if (this.overtimeRemaining <= 0) this.beginOvertime();
+      return;
     }
+
+    if (timeUp || targetReached) this.resolveRegulationFinish();
   }
 
-  // Termina la partida; ganan todos los que tengan el puntaje más alto (varios = empate).
+  resolveRegulationFinish() {
+    const best = Math.max(...this.players.map((player) => player.score));
+    const leaders = this.players.filter((player) => player.score === best);
+
+    if (leaders.length > 1) {
+      this.beginOvertime();
+      return;
+    }
+
+    this.finish();
+  }
+
+  beginOvertime() {
+    if (this.status === 'FINISHED') return;
+    this.status = 'OVERTIME';
+    this.overtimeRemaining = this.overtimeSeconds;
+  }
+
+  forceEvent(type) {
+    if (!this.events) return false;
+    return this.events.force(type, this);
+  }
+
+  devSetScore(playerId, score) {
+    const player = this.players.find((candidate) => candidate.id === playerId);
+    if (!player || !Number.isFinite(score) || score < 0) return false;
+    player.score = Math.floor(score);
+    return true;
+  }
+
+  devAddScore(playerId, amount) {
+    const player = this.players.find((candidate) => candidate.id === playerId);
+    if (!player || !Number.isFinite(amount)) return false;
+    player.score = Math.max(0, player.score + Math.floor(amount));
+    return true;
+  }
+
+  // Termina definitivamente la partida; ganan todos los que tengan el puntaje más alto
+  // (varios = empate, por ejemplo al cerrar por el límite máximo de seguridad).
   finish() {
     if (this.status === 'FINISHED') return;
 
     this.events?.finish(this);
     const best = Math.max(...this.players.map((player) => player.score));
     this.status = 'FINISHED';
+    this.overtimeRemaining = null;
     this.winnerIds = this.players
       .filter((player) => player.score === best)
       .map((player) => player.id);
@@ -546,6 +623,9 @@ class ArenaEngine {
     return {
       status: this.status,
       countdown: this.countdown,
+      elapsed: round(this.elapsed),
+      overtimeRemaining:
+        this.status === 'OVERTIME' ? Math.max(0, this.overtimeRemaining) : null,
       timeRemaining: this.timeRemaining,
       targetPoints:
         this.config.endMode === 'POINTS' ? this.config.targetPoints : null,

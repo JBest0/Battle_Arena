@@ -69,6 +69,7 @@ const USERS = [
     displayName: 'Jugador Uno',
     bio: 'Primer jugador de la arena.',
     avatarId: AVATARS[0].id,
+    devMode: true,
   },
   {
     id: '10000000-0000-4000-8000-000000000002',
@@ -170,6 +171,7 @@ async function seedUsers() {
         passwordHash,
         emailVerified: true,
         avatarId: user.avatarId,
+        devMode: user.devMode ?? false,
       },
       create: {
         id: user.id,
@@ -180,6 +182,7 @@ async function seedUsers() {
         displayName: user.displayName,
         bio: user.bio,
         avatarId: user.avatarId,
+        devMode: user.devMode ?? false,
       },
     });
 

@@ -7,6 +7,7 @@ import { isUrgent, myEffects, myStatus, obstacleAlerts } from '../../game/hudMod
 export default function HudStrip({ config, hud, currentUserId }) {
   const status = myStatus(hud, currentUserId);
   const isTime = config.endMode === 'TIME';
+  const overtime = hud.status === 'OVERTIME';
   const effects = status ? myEffects(status.me, hud.events, { includeEvents: true }) : [];
   const alerts = obstacleAlerts(hud.obstacles);
 
@@ -14,7 +15,11 @@ export default function HudStrip({ config, hud, currentUserId }) {
     <div className="hud-strip" aria-label="Resumen de la partida">
       <div className="hud-strip-main">
         <span className={`hud-strip-time${isUrgent(hud) ? ' is-urgent' : ''}`}>
-          {isTime ? formatDuration(hud.timeRemaining) : `${hud.targetPoints} pts`}
+          {overtime
+            ? `Prórroga ${formatDuration(hud.overtimeRemaining)}`
+            : isTime
+              ? formatDuration(hud.timeRemaining)
+              : `${hud.targetPoints} pts`}
         </span>
         {status && (
           <>

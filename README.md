@@ -911,6 +911,15 @@ Ambas siguen dentro de `<VerifiedRoute>` (CA-03.4).
 - No hay "salir de la sala de espera" ni expulsar jugadores.
 - El control físico ESP32 (módulo de hardware) está pendiente.
 
+### Prórroga y resultados
+
+- Si al agotarse el tiempo hay empate, la partida entra en estado `OVERTIME` durante
+  120 segundos y mantiene los puntajes acumulados.
+- Si persiste el empate al terminar una prórroga, comienza otra prórroga automáticamente.
+- Cuando queda un líder único, la partida finaliza y persiste el resultado una sola vez.
+- Al finalizar se presenta una pantalla diferenciada con ganador, podio disponible,
+  puntajes, participantes y duración.
+
 ## Escenarios
 
 Cada escenario es un archivo `.json` en `backend/src/scenarios/` (o en la carpeta de la
@@ -1037,8 +1046,8 @@ un evento a la vez y nunca sale el mismo tipo dos veces seguidas.
 
 | Tipo (`type`) | Qué hace |
 | --- | --- |
-| `reactor-overload` | Sobrecarga del reactor: las celdas de energía valen el doble (x2 puntos) |
-| `energy-rain` | Lluvia de energía: caen hasta 8 celdas extra (azules); las que nadie recoge se retiran al terminar |
+| `reactor-overload` | Sobrecarga del reactor: las celdas valen el doble (x2 puntos), pero el reactor queda desactivado temporalmente y no concede puntos allí |
+| `energy-rain` | Lluvia de energía: caen hasta 8 celdas extra (azules), valen 1 punto fijo, cada recolección queda registrada y las que nadie recoge se retiran al terminar |
 | `blackout` | Apagón: una mitad de la arena queda a oscuras y el jugador conserva una pequeña luz |
 | `alternate-route` | Ruta alternativa: se abren 2 huecos de 2 celdas en muros de 1 o 2 de grosor; al terminar se cierran, pero nunca encima de un jugador (esperan a que quede libre) |
 | `guardian-invasion` | Invasión de guardianes: aparecen 5 guardianes extra (mismas reglas que los permanentes, lejos de los jugadores); desaparecen al terminar |

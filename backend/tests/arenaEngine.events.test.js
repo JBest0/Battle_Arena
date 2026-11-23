@@ -123,9 +123,51 @@ describe('ArenaEngine con eventos especiales', () => {
       expect(engine.snapshot().events).toEqual([]);
       expect(collectOne(engine)).toBe(1);
     });
+
+    it('desactiva el reactor y no concede puntos dentro de él', () => {
+      const engine = createEngine({
+        types: [ReactorOverloadEvent],
+        scenario: scenarioWith(),
+      });
+      untilEvent(engine);
+
+      const player = engine.players[0];
+      player.x = 15.5 * ARENA.cellSize;
+      player.y = 9.5 * ARENA.cellSize;
+
+      engine.items = [{ id: 'reactor-prueba', x: player.x, y: player.y }];
+      engine.collectItems();
+
+      expect(player.score).toBe(0);
+      expect(engine.items).toHaveLength(1);
+      expect(engine.snapshot().events[0].params).toMatchObject({
+        multiplier: 2,
+        reactorDisabled: true,
+      });
+    });
   });
 
   describe('lluvia de energía', () => {
+    it('garantiza al menos tres apariciones en una partida larga', () => {
+      const engine = createEngine({
+        types: [EnergyRainEvent],
+        random: () => 0.5,
+        rules: {
+          ...RULES,
+          energyRainAppearances: 3,
+          eventIntervalSeconds: 10,
+          eventDurationSeconds: 5,
+        },
+      });
+      start(engine);
+      run(engine, 800);
+
+      const appearances = engine.result().events.filter(
+        (record) => record.type === 'energy-rain'
+      ).length;
+      expect(appearances).toBeGreaterThanOrEqual(3);
+    });
+
     it('suelta celdas extra y las retira al terminar sin tocar las normales', () => {
       const engine = createEngine({ types: [EnergyRainEvent] });
       untilEvent(engine);
@@ -159,6 +201,10 @@ describe('ArenaEngine con eventos especiales', () => {
 
       expect(player.score).toBe(before + 1);
       expect(engine.items).toEqual([]);
+      expect(engine.snapshot().events[0].params.collected).toContainEqual({
+        itemId: bonus.id,
+        playerId: player.id,
+      });
     });
 
     it('funciona con las celdas del escenario y cae al azar si no alcanzan', () => {

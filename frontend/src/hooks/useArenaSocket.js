@@ -84,5 +84,14 @@ export function useArenaSocket(matchId) {
     socketRef.current?.emit('player:input', { dx, dy });
   }, []);
 
-  return { stateRef, hud, connection, error, sendInput };
+  const sendDevAction = useCallback((action) =>
+    new Promise((resolve) => {
+      if (!socketRef.current?.connected) {
+        resolve({ ok: false, message: 'El socket no está conectado.' });
+        return;
+      }
+      socketRef.current.emit('dev:action', action, resolve);
+    }), []);
+
+  return { stateRef, hud, connection, error, sendInput, sendDevAction };
 }

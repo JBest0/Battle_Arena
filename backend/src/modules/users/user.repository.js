@@ -159,6 +159,7 @@ class UserRepository {
       username: user.username,
       email: user.email,
       emailVerified: user.emailVerified,
+      devMode: Boolean(user.devMode),
       avatarId: user.avatarId || (user.avatar ? user.avatar.id : null),
       avatarUrl: user.avatar ? user.avatar.url : null,
       createdAt: user.createdAt,

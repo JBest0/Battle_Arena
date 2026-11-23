@@ -190,3 +190,21 @@ test('guardianLegend solo aparece si hay guardianes en la partida', () => {
   assert.equal(entry.id, 'guardian');
   assert.match(entry.live, /4/);
 });
+
+test('toHud conserva prórroga y duración', () => {
+  const hud = toHud({
+    status: 'OVERTIME',
+    overtimeRemaining: 5.2,
+    elapsed: 300,
+    countdown: 0,
+    timeRemaining: 0,
+    targetPoints: null,
+    winnerIds: [],
+    players: [],
+  });
+
+  assert.equal(hud.status, 'OVERTIME');
+  assert.equal(hud.overtimeRemaining, 6);
+  assert.equal(hud.elapsed, 300);
+  assert.equal(isUrgent(hud), true);
+});
