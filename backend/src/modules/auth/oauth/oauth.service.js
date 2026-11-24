@@ -56,18 +56,23 @@ class OauthService {
       );
       if (identity) {
         await this.userRepository.touchLastLogin(identity.userId, tx);
-        return this.userRepository.findByIdWithAvatar(identity.userId, tx);
+        const identityUser = await this.userRepository.findByIdWithAvatar(
+          identity.userId,
+          tx
+        );
+        if (identityUser && !identityUser.emailVerified) {
+          await this.userRepository.markEmailVerified(identityUser.id, tx);
+          identityUser.emailVerified = true;
+        }
+        return identityUser;
       }
 
       let existing = await this.userRepository.findByEmail(email, tx);
-      if (existing && !existing.emailVerified) {
-        throw new AppError(
-          400,
-          'EMAIL_NOT_VERIFIED',
-          'El correo de esta cuenta todavía no está verificado'
-        );
-      }
       if (existing) {
+        if (!existing.emailVerified) {
+          await this.userRepository.markEmailVerified(existing.id, tx);
+          existing.emailVerified = true;
+        }
         await this.externalIdentityRepository.create(
           {
             userId: existing.id,

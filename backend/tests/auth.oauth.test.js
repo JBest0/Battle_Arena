@@ -34,7 +34,16 @@ function makeHarness(profileOverrides = {}) {
   const userRepository = {
     findByEmail: jest.fn(async () => userByEmail),
     findByUsername: jest.fn(async (username) => (created?.username === username ? created : null)),
-    findByIdWithAvatar: jest.fn(async (id) => created || makeUser({ id })),
+    findByIdWithAvatar: jest.fn(async (id) =>
+      created ||
+      (identity?.userId === id ? identity.user : null) ||
+      (userByEmail?.id === id ? userByEmail : makeUser({ id }))
+    ),
+    markEmailVerified: jest.fn(async (id) => {
+      if (created?.id === id) created.emailVerified = true;
+      if (userByEmail?.id === id) userByEmail.emailVerified = true;
+      return makeUser({ id, emailVerified: true });
+    }),
     touchLastLogin: jest.fn(async () => {}),
     toPublicUser: jest.fn((user) => ({
       id: user.id,
@@ -124,6 +133,23 @@ describe('GitHub OAuth account linking', () => {
     expect(harness.authService.createUserWithDefaults).not.toHaveBeenCalled();
   });
 
+  it('verifies an existing external identity before returning the session', async () => {
+    const harness = makeHarness();
+    const existing = makeUser({
+      id: 'unverified-github-user',
+      emailVerified: false,
+    });
+    harness.setIdentity({ userId: existing.id, user: existing });
+
+    const result = await harness.service.loginWithCode('code');
+
+    expect(result.user.emailVerified).toBe(true);
+    expect(harness.userRepository.markEmailVerified).toHaveBeenCalledWith(
+      'unverified-github-user',
+      expect.anything()
+    );
+  });
+
   it('links by verified email without creating a duplicate user', async () => {
     const harness = makeHarness();
     const existing = makeUser({ id: 'existing-user' });
@@ -137,6 +163,26 @@ describe('GitHub OAuth account linking', () => {
       expect.objectContaining({ userId: 'existing-user' }),
       expect.anything()
     );
+  });
+
+  it('links and verifies an existing Gmail account through GitHub', async () => {
+    const harness = makeHarness();
+    const existing = makeUser({
+      id: 'gmail-user',
+      passwordHash: 'existing-password-hash',
+      emailVerified: false,
+    });
+    harness.setUserByEmail(existing);
+
+    const result = await harness.service.loginWithCode('code');
+
+    expect(result.user.id).toBe('gmail-user');
+    expect(result.user.emailVerified).toBe(true);
+    expect(harness.userRepository.markEmailVerified).toHaveBeenCalledWith(
+      'gmail-user',
+      expect.anything()
+    );
+    expect(harness.authService.createUserWithDefaults).not.toHaveBeenCalled();
   });
 
   it('rejects an account when GitHub has no verified email', async () => {

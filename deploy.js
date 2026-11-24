@@ -25,6 +25,46 @@ function setEnvValue(content, key, value) {
   return `${content}${separator}${line}\n`;
 }
 
+function getEnvValue(content, key) {
+  const match = content.match(new RegExp(`^${key}=(.*)$`, 'm'));
+  return match ? match[1].trim().replace(/^"|"$/g, '') : '';
+}
+
+function validateProtectedConfig(content) {
+  const smtpHost = getEnvValue(content, 'SMTP_HOST');
+  const smtpPort = getEnvValue(content, 'SMTP_PORT');
+  const smtpUser = getEnvValue(content, 'SMTP_USER');
+  const smtpPass = getEnvValue(content, 'SMTP_PASS');
+  const mailFrom = getEnvValue(content, 'MAIL_FROM');
+  const jwtSecret = getEnvValue(content, 'JWT_SECRET');
+
+  if (!smtpHost || !smtpPort) {
+    return 'Falta la configuración SMTP_HOST/SMTP_PORT';
+  }
+  if (
+    smtpHost === 'mailpit' &&
+    (smtpUser || smtpPass)
+  ) {
+    return 'La configuración SMTP mezcla Mailpit con credenciales externas';
+  }
+  if (
+    smtpHost !== 'mailpit' &&
+    (!smtpUser ||
+      !smtpPass ||
+      smtpUser.includes('tu-cuenta') ||
+      smtpPass.includes('tu-'))
+  ) {
+    return 'Falta configurar SMTP_USER/SMTP_PASS reales';
+  }
+  if (!mailFrom || mailFrom.includes('tu-cuenta')) {
+    return 'Falta configurar MAIL_FROM';
+  }
+  if (!jwtSecret || jwtSecret === 'cambiar') {
+    return 'Falta configurar JWT_SECRET';
+  }
+  return null;
+}
+
 function applyProfile(content, profilePath) {
   if (!fs.existsSync(profilePath)) return content;
 
@@ -177,17 +217,25 @@ envContent = setEnvValue(
   `${frontendUrl}/api/auth/oauth/github/callback`
 );
 
-if (isEasyLanMode) {
-  envContent = setEnvValue(envContent, 'SMTP_HOST', 'mailpit');
-  envContent = setEnvValue(envContent, 'SMTP_PORT', '1025');
-  envContent = setEnvValue(envContent, 'SMTP_USER', '');
-  envContent = setEnvValue(envContent, 'SMTP_PASS', '');
+const smtpHost = getEnvValue(envContent, 'SMTP_HOST');
+const smtpUser = getEnvValue(envContent, 'SMTP_USER');
+const mailFrom = getEnvValue(envContent, 'MAIL_FROM');
+if (smtpHost !== 'mailpit' && smtpUser && mailFrom.includes('battle-arena.local')) {
   envContent = setEnvValue(
     envContent,
     'MAIL_FROM',
-    '"Battle Arena <no-reply@battle-arena.local>"'
+    `"Battle Arena <${smtpUser}>"`
   );
+}
 
+const protectedConfigError = validateProtectedConfig(envContent);
+if (protectedConfigError) {
+  console.error(`Configuración protegida inválida: ${protectedConfigError}`);
+  console.error('Revisa backend/.env antes de desplegar.');
+  process.exit(1);
+}
+
+if (isEasyLanMode) {
   if (!/^JWT_SECRET=(?!cambiar$).+/m.test(envContent)) {
     envContent = setEnvValue(
       envContent,
@@ -198,6 +246,9 @@ if (isEasyLanMode) {
 }
 
 fs.writeFileSync(envPath, envContent, 'utf8');
+if (process.platform !== 'win32') {
+  fs.chmodSync(envPath, 0o600);
+}
 
 console.log(`Configuración: ${isLanMode ? 'acceso en red local' : 'acceso local'}`);
 console.log(`FRONTEND_URL: ${frontendUrl}`);
@@ -225,7 +276,9 @@ console.log(`Panel de pruebas: ${frontendUrl}/test`);
 console.log(`Registro:         ${frontendUrl}/register`);
 console.log(`API:              ${isLanMode ? `http://${lanIp}:3000/api` : 'http://localhost:3000/api'}`);
 console.log(`Health check:     ${isLanMode ? `http://${lanIp}:3000/api/health` : 'http://localhost:3000/api/health'}`);
-console.log('Mailpit:          http://localhost:8025');
+if (smtpHost === 'mailpit') {
+  console.log('Mailpit:          http://localhost:8025');
+}
 
 if (isEasyLanMode) {
   console.log('\nDesde otra computadora, abre la URL de Aplicación.');
