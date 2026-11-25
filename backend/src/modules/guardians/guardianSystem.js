@@ -310,8 +310,10 @@ class GuardianSystem {
     }
   }
 
-  // Si toca a un jugador que se pueda congelar, lo congela. El tiempo de ralentización que
-  // el jugador ya tuviera (trampa) se suma al congelamiento.
+  // Si toca a un jugador que se pueda congelar, lo congela y le resta `freezePenalty` puntos
+  // (sin bajar de 0). El tiempo de ralentización que el jugador ya tuviera (trampa) se suma al
+  // congelamiento. Solo se resta una vez por congelamiento: mientras está congelado o en gracia
+  // ningún guardián lo vuelve a tocar.
   touch(guardian, engine) {
     const { elapsed } = engine;
 
@@ -321,6 +323,7 @@ class GuardianSystem {
         Math.hypot(player.x - guardian.x, player.y - guardian.y) <= this.settings.touchRadius
       ) {
         engine.freezePlayer(player, this.settings.freezeSeconds + slowRemaining(player, elapsed));
+        player.score = Math.max(0, player.score - (this.settings.freezePenalty ?? 0));
       }
     }
   }

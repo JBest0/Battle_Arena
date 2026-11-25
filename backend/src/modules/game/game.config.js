@@ -39,6 +39,13 @@ const RANDOM_WALL_LIMITS = { intervalSeconds: { min: 5, max: 60, default: 10 } }
 // Se puede cambiar con GUARDIAN_FREEZE_SECONDS.
 const GUARDIAN_LIMITS = { freezeSeconds: { min: 1, max: 15, default: 3 } };
 
+// Extracción de energía del reactor (US-18).
+const REACTOR = {
+  extractPoints: 1, // puntos por extracción válida (se multiplican por eventos y sectores de riesgo)
+  cooldownSeconds: 1, // recarga del reactor tras cada extracción: el primero en pulsar se la lleva
+  range: 40, // distancia máxima al borde del reactor para poder extraer (unidades de arena)
+};
+
 // Reglas de los guardianes (US-21 y evento de invasión, US-22). Van aparte de GAMEPLAY y el
 // motor solo los crea si recibe `rules.guardians`; así las partidas sin esta sección (y las
 // pruebas del motor que no tratan de guardianes) siguen igual.
@@ -46,6 +53,7 @@ const GUARDIANS = {
   count: 4, // guardianes permanentes, uno en cada extremo (punto medio de cada borde)
   speed: 110, // unidades de arena por segundo (la mitad que el jugador: se les puede huir)
   freezeSeconds: GUARDIAN_LIMITS.freezeSeconds.default, // congelamiento al tocar a un jugador
+  freezePenalty: 2, // puntos que pierde el jugador cada vez que lo congela un guardián (mínimo 0)
   graceSeconds: 2, // tras descongelarse el jugador es inmune y los guardianes lo ignoran
   touchRadius: 20, // distancia entre centros a la que un guardián "toca" a un jugador
   repathSeconds: 0.2, // cada cuánto recalculan objetivo y ruta
@@ -56,7 +64,9 @@ const GUARDIANS = {
 // Reglas de la partida en curso (las usa el motor de tiempo real).
 const GAMEPLAY = {
   playerSpeed: 220, // unidades de arena por segundo
-  itemsOnField: 4, // ítems simultáneos en la arena
+  // Celdas de energía permanentes repartidas por el mapa. 0: la energía sale del reactor; el
+  // mapa solo recibe celdas extra durante el evento de lluvia de energía.
+  itemsOnField: 0,
   countdownSeconds: 5, // cuenta regresiva antes de empezar (da tiempo a que todos conecten)
   overtimeSeconds: 120, // prórroga de dos minutos después de un empate
   energyRainAppearances: 3, // mínimo de lluvias de energía en una partida completa
@@ -114,6 +124,7 @@ module.exports = {
   EVENT_LIMITS,
   GUARDIAN_LIMITS,
   GUARDIANS,
+  REACTOR,
   RANDOM_WALL_LIMITS,
   MIN_PLAYERS_TO_START,
   OPEN_MATCH_MAX_AGE_MINUTES,

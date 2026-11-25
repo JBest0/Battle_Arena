@@ -136,6 +136,91 @@ function drawReactorPulse(ctx, reactor, size, accent, time) {
   ctx.restore();
 }
 
+const REACTOR_COLORS = { available: '#3ad4ff', recharging: '#ffb703', disabled: '#8d99ae' };
+const BEAM_MS = 450;
+
+// Estado del reactor (US-18): zona donde se puede extraer (resaltada si el jugador local está
+// dentro), recarga tras cada extracción, desactivado, y el rayo de la última extracción.
+function drawReactorStatus(ctx, reactor, size, status, players, currentUserId, time, fx) {
+  const baseX = reactor.col * size;
+  const baseY = reactor.row * size;
+  const width = reactor.cols * size;
+  const height = reactor.rows * size;
+  const topY = baseY - REACTOR_HEIGHT; // la cara superior va elevada
+  const color = REACTOR_COLORS[status.state] || REACTOR_COLORS.available;
+  const range = status.range || 0;
+  const me = players.find((player) => player.id === currentUserId);
+
+  const dx = me ? Math.max(baseX - me.x, 0, me.x - (baseX + width)) : Infinity;
+  const dy = me ? Math.max(baseY - me.y, 0, me.y - (baseY + height)) : Infinity;
+  const near = Math.hypot(dx, dy) <= range;
+
+  ctx.save();
+  // zona de interacción
+  ctx.globalAlpha = near ? 0.1 : 0.04;
+  ctx.fillStyle = color;
+  ctx.fillRect(baseX - range, baseY - range, width + range * 2, height + range * 2);
+  ctx.globalAlpha = near ? 0.95 : 0.4;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = near ? 3 : 2;
+  ctx.setLineDash([7, 6]);
+  ctx.lineDashOffset = -time / 60;
+  ctx.strokeRect(baseX - range, baseY - range, width + range * 2, height + range * 2);
+  ctx.setLineDash([]);
+
+  // estado del propio reactor
+  if (status.state === 'available') {
+    const pulse = 0.5 + 0.5 * Math.sin(time / 260);
+    ctx.globalAlpha = 0.45 + 0.4 * pulse;
+    ctx.lineWidth = 3;
+    ctx.strokeRect(baseX - 2, topY - 2, width + 4, height + 4);
+  } else if (status.state === 'recharging') {
+    const left = status.cooldownTotal ? Math.min(1, status.cooldown / status.cooldownTotal) : 1;
+    ctx.globalAlpha = 0.5;
+    ctx.fillRect(baseX, topY, width, height);
+    ctx.globalAlpha = 0.95;
+    ctx.fillRect(baseX, topY - 8, width * (1 - left), 4);
+  } else {
+    ctx.globalAlpha = 0.55;
+    ctx.fillRect(baseX, topY, width, height);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '800 20px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('✕', baseX + width / 2, topY + height / 2);
+  }
+
+  // ayuda sobre el reactor para quien está en la zona y puede extraer
+  if (near && status.state === 'available') {
+    ctx.globalAlpha = 1;
+    ctx.font = '800 12px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = 4;
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(8, 12, 18, 0.9)';
+    ctx.strokeText('¡Pulsa acción!', baseX + width / 2, topY - 14);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('¡Pulsa acción!', baseX + width / 2, topY - 14);
+  }
+
+  // rayo de la última extracción: del reactor a quien la hizo
+  const age = time - fx.at;
+  const puller = fx.by ? players.find((player) => player.id === fx.by) : null;
+  if (puller && age >= 0 && age < BEAM_MS) {
+    ctx.globalAlpha = 1 - age / BEAM_MS;
+    ctx.strokeStyle = '#e8fbff';
+    ctx.lineWidth = 5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(baseX + width / 2, topY + height / 2);
+    ctx.lineTo(puller.x, puller.y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 // Apagón: oscurece la región del evento, con una luz suave alrededor del jugador local.
 function drawBlackout(ctx, region, light) {
   ctx.save();
@@ -377,6 +462,18 @@ function draw(ctx, canvas, state, view) {
   if (event?.type === 'reactor-overload' && reactor) {
     drawReactorPulse(ctx, reactor, arena.cellSize, event.params?.reactorDisabled ? '#ff4d4d' : accent, time);
   }
+  if (reactor && state.reactor) {
+    drawReactorStatus(
+      ctx,
+      reactor,
+      arena.cellSize,
+      state.reactor,
+      state.players,
+      currentUserId,
+      time,
+      view.reactorFx
+    );
+  }
 
   // Las celdas extra de la lluvia de energía se distinguen de las normales.
   drawItems(ctx, state.items.filter((item) => !item.bonus), arena.itemRadius, palette.cell, time);
@@ -428,6 +525,8 @@ export default function ArenaCanvas({ stateRef, arena, scenario = null, currentU
     const palette = scenarioPalette(scenario);
     const effects = new EffectsLayer();
     const previous = new Map();
+    // Última extracción vista del reactor (para dibujar el rayo y las chispas una sola vez).
+    const reactorFx = { count: 0, at: -Infinity, by: null };
     // Con ?fps=1 en la dirección se muestra (y se expone en window.__arenaFps) el FPS real.
     const showFps = new URLSearchParams(window.location.search).has('fps');
     let frames = 0;
@@ -481,6 +580,21 @@ export default function ArenaCanvas({ stateRef, arena, scenario = null, currentU
           palette,
           accent: event?.accent,
         });
+        if (state.reactor) {
+          if (state.reactor.extractions > reactorFx.count) {
+            reactorFx.at = now;
+            reactorFx.by = state.reactor.lastBy;
+            if (reactor) {
+              effects.burst(
+                (reactor.col + reactor.cols / 2) * arena.cellSize,
+                (reactor.row + reactor.rows / 2) * arena.cellSize - REACTOR_HEIGHT,
+                REACTOR_COLORS.available,
+                14
+              );
+            }
+          }
+          reactorFx.count = state.reactor.extractions;
+        }
         effects.update(Math.min(0.1, (now - lastFrame) / 1000));
         draw(ctx, canvas, state, {
           arena,
@@ -489,6 +603,7 @@ export default function ArenaCanvas({ stateRef, arena, scenario = null, currentU
           palette,
           currentUserId,
           reactor,
+          reactorFx,
           time: now,
           appear,
           effects,

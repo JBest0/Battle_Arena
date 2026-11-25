@@ -14,7 +14,9 @@ function failure(code, message) {
  * Cliente -> servidor
  *   `match:join`   { matchId }  con ack { ok, status, state? } | { ok: false, code, message }
  *   `player:input` { dx, dy }   dirección deseada (-1..1 por eje)
+ *   `player:action` { type: 'extract', id }  botón de acción: extraer energía del reactor
  * Servidor -> cliente
+ *   `action:rejected` { type, code, message }  una acción pedida no fue válida (solo a quien la pidió)
  *   `arena:state`     estado de la arena (ver ArenaEngine.snapshot)
  *   `match:finished`  estado final, después de guardar el resultado
  *
@@ -101,6 +103,20 @@ function createRealtime({
       if (!matchId) return;
 
       manager.setInput(matchId, socket.user.id, Number(payload?.dx), Number(payload?.dy));
+    });
+
+    // Botón de acción (US-18): pide extraer energía del reactor. El jugador sale del socket
+    // autenticado; `id` identifica la pulsación para que un reenvío no cuente dos veces. Si el
+    // servidor la rechaza, avisa solo a quien la pidió con el motivo (`action:rejected`).
+    socket.on('player:action', (payload) => {
+      const { matchId } = socket.data;
+      if (!matchId || payload?.type !== 'extract') return;
+
+      const id = typeof payload.id === 'string' ? payload.id.slice(0, 64) : null;
+      const result = manager.extractEnergy(matchId, socket.user.id, id);
+      if (!result.ok && result.code !== 'DUPLICATE') {
+        socket.emit('action:rejected', { type: 'extract', code: result.code, message: result.message });
+      }
     });
 
     socket.on('dev:action', (action, ack) => {

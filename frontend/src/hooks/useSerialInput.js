@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { isButtonPress, parseSerialLine } from '../game/serialProtocol';
 
 const BAUD_RATE = 115200; // debe coincidir con Serial.begin() del Arduino
-const LINE = /^(-1|0|1),(-1|0|1)$/;
 
 /*
  * Control físico (Arduino Mega 2560) por USB usando la Web Serial API.
- * Lee líneas "dx,dy" y las reenvía con el mismo sendInput que usa el teclado.
+ * Lee líneas "dx,dy" (o "dx,dy,b" con el botón de acción) y las reenvía con el mismo
+ * sendInput que usa el teclado. Cada pulsación del botón (paso de 0 a 1) es UNA acción: las
+ * líneas que repiten b = 1 mientras sigue presionado no generan más acciones.
  *
  * Devuelve:
  * - supported: el navegador soporta Web Serial (Chrome / Edge, con HTTPS o localhost)
@@ -16,12 +18,14 @@ const LINE = /^(-1|0|1),(-1|0|1)$/;
  *
  * Si ya diste permiso antes, se reconecta solo al entrar a la arena.
  */
-export function useSerialInput(sendInput, enabled) {
+export function useSerialInput(sendInput, enabled, onAction = null) {
   const supported = typeof navigator !== 'undefined' && 'serial' in navigator;
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
 
   const sendRef = useRef(sendInput);
+  const actionRef = useRef(onAction);
+  const pressedRef = useRef(false);
   const enabledRef = useRef(enabled);
   const lastRef = useRef([0, 0]);
   const readerRef = useRef(null);
@@ -29,6 +33,7 @@ export function useSerialInput(sendInput, enabled) {
   const aliveRef = useRef(true);
 
   sendRef.current = sendInput;
+  actionRef.current = onAction;
   enabledRef.current = enabled;
 
   // Si el control ya tenía una dirección apretada cuando empieza la partida, se envía.
@@ -72,13 +77,18 @@ export function useSerialInput(sendInput, enabled) {
 
           let index;
           while ((index = buffer.indexOf('\n')) >= 0) {
-            const match = LINE.exec(buffer.slice(0, index).trim());
+            const parsed = parseSerialLine(buffer.slice(0, index));
             buffer = buffer.slice(index + 1);
-            if (!match) continue;
+            if (!parsed) continue;
 
-            const dx = Number(match[1]);
-            const dy = Number(match[2]);
+            const { dx, dy, pressed } = parsed;
             lastRef.current = [dx, dy];
+
+            if (isButtonPress(pressedRef.current, pressed) && enabledRef.current) {
+              actionRef.current?.();
+            }
+            pressedRef.current = pressed;
+
             if (enabledRef.current) sendRef.current(dx, dy);
           }
         }
@@ -92,6 +102,7 @@ export function useSerialInput(sendInput, enabled) {
 
     await port.close().catch(() => {});
     lastRef.current = [0, 0];
+    pressedRef.current = false;
     sendRef.current(0, 0);
 
     if (failed && aliveRef.current) {

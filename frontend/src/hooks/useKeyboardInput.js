@@ -15,9 +15,13 @@ function normalizeKey(key) {
   return key.length === 1 ? key.toLowerCase() : key;
 }
 
+// Teclas del botón de acción (extraer energía del reactor, US-18).
+const ACTION_KEYS = new Set([' ', 'e']);
+
 // Teclado (WASD o flechas) como control mientras no exista el control físico ESP32
-// (US-12, 14). Solo envía cuando cambia la dirección y suelta al perder el foco.
-export function useKeyboardInput(sendInput, enabled) {
+// (US-12, 14). Solo envía cuando cambia la dirección y suelta al perder el foco. Espacio o E
+// hacen de botón de acción: una pulsación = una acción (se ignora la repetición al mantener).
+export function useKeyboardInput(sendInput, enabled, onAction = null) {
   useEffect(() => {
     if (!enabled) return undefined;
 
@@ -41,8 +45,14 @@ export function useKeyboardInput(sendInput, enabled) {
 
     function onKeyDown(event) {
       const key = normalizeKey(event.key);
-      if (!(key in DIRECTIONS)) return;
       if (/^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName)) return;
+
+      if (ACTION_KEYS.has(key)) {
+        event.preventDefault();
+        if (!event.repeat && onAction) onAction();
+        return;
+      }
+      if (!(key in DIRECTIONS)) return;
 
       event.preventDefault();
       pressed.add(key);
@@ -70,5 +80,5 @@ export function useKeyboardInput(sendInput, enabled) {
       pressed.clear();
       if (last !== '0,0') sendInput(0, 0);
     };
-  }, [sendInput, enabled]);
+  }, [sendInput, enabled, onAction]);
 }

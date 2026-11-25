@@ -1218,6 +1218,23 @@ body {
   line-height: 1;
 }
 
+.arena-notice {
+  margin: 0;
+}
+
+.arena-action-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.button-action {
+  min-height: 44px;
+  padding-inline: 1.25rem;
+  font-weight: 700;
+}
+
 .arena-controls-hint {
   margin: 0;
   color: #52606d;
@@ -1615,6 +1632,12 @@ body {
 .legend-swatch-corridor,
 .legend-swatch-wall {
   background-color: var(--swatch);
+}
+
+.legend-swatch-reactor {
+  --swatch: #3ad4ff;
+  border-radius: 50%;
+  background: radial-gradient(circle, #e8fbff 0 2px, #3ad4ff 3px, #0c4a63);
 }
 
 .legend-swatch-guardian {

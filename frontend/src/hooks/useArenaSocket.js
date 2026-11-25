@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createGameSocket } from '../api/socket';
 import { toHud } from '../game/arenaState';
+import { createActionId } from '../game/actionId';
 
 const HUD_INTERVAL_MS = 200;
 
@@ -17,6 +18,8 @@ const CONNECT_ERRORS = {
  * - hud: copia liviana para el marcador y el reloj (unas 5 veces por segundo).
  * - connection: 'connecting' | 'connected' | 'reconnecting' | 'error'
  * - sendInput(dx, dy): dirección deseada del jugador (-1..1 por eje).
+ * - sendAction(): botón de acción; pide extraer energía del reactor (US-18).
+ * - notice: último rechazo del servidor { message, at } (p. ej. "Estás muy lejos del reactor").
  */
 export function useArenaSocket(matchId) {
   const stateRef = useRef(null);
@@ -24,6 +27,7 @@ export function useArenaSocket(matchId) {
   const [hud, setHud] = useState(null);
   const [connection, setConnection] = useState('connecting');
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState(null);
 
   useEffect(() => {
     const socket = createGameSocket();
@@ -73,6 +77,7 @@ export function useArenaSocket(matchId) {
 
     socket.on('arena:state', (state) => applyState(state));
     socket.on('match:finished', (state) => applyState(state, true));
+    socket.on('action:rejected', ({ message }) => setNotice({ message, at: Date.now() }));
 
     return () => {
       socket.disconnect();
@@ -84,6 +89,10 @@ export function useArenaSocket(matchId) {
     socketRef.current?.emit('player:input', { dx, dy });
   }, []);
 
+  const sendAction = useCallback(() => {
+    socketRef.current?.emit('player:action', { type: 'extract', id: createActionId() });
+  }, []);
+
   const sendDevAction = useCallback((action) =>
     new Promise((resolve) => {
       if (!socketRef.current?.connected) {
@@ -93,5 +102,5 @@ export function useArenaSocket(matchId) {
       socketRef.current.emit('dev:action', action, resolve);
     }), []);
 
-  return { stateRef, hud, connection, error, sendInput, sendDevAction };
+  return { stateRef, hud, connection, error, sendInput, sendAction, notice, sendDevAction };
 }

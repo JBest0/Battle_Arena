@@ -195,6 +195,24 @@ export function scenarioLegend(scenario) {
   return entries;
 }
 
+// Entrada de la leyenda para el reactor: de dónde sale la energía y cómo está ahora.
+const REACTOR_STATES = {
+  available: 'Disponible',
+  recharging: 'Recargando',
+  disabled: 'Desactivado',
+};
+
+export function reactorLegend(state) {
+  if (!state) return null;
+
+  return {
+    id: 'reactor',
+    label: 'Reactor',
+    hint: 'Acércate y pulsa el botón de acción para extraer energía',
+    live: REACTOR_STATES[state] || '',
+  };
+}
+
 // Entrada de la leyenda para los guardianes (no depende del escenario: salen en todos).
 export function guardianLegend(count) {
   if (!count) return null;

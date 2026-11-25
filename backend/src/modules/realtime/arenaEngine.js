@@ -6,6 +6,7 @@ const { EventScheduler } = require('../events/eventScheduler');
 const { ObstacleSystem } = require('../obstacles/obstacleSystem');
 const { allReachable } = require('../scenarios/scenario.reachability');
 const { GuardianSystem } = require('../guardians/guardianSystem');
+const { ReactorSystem } = require('./reactor');
 const { initialEffects, speedFactor, slowRemaining, applyHazards } = require('./hazards');
 const {
   initialPlayerState,
@@ -121,6 +122,9 @@ class ArenaEngine {
       });
       this.obstacles.init(this);
     }
+
+    // Reactor (US-18): solo existe si el escenario lo trae.
+    this.reactor = scenario ? new ReactorSystem(scenario.reactor, rules.reactor) : null;
 
     // Guardianes (US-21): se colocan al final, con los obstáculos iniciales ya puestos.
     this.guardians = null;
@@ -317,6 +321,24 @@ class ArenaEngine {
       this.items.push({ id: `item-${this.nextItemId}`, x: spot.x, y: spot.y });
       this.nextItemId += 1;
     }
+  }
+
+  /**
+   * Extracción de energía del reactor (US-18). `userId` es el jugador autenticado del socket
+   * (nunca un dato del cliente) y `actionId` identifica el evento físico para ignorar
+   * retransmisiones. Devuelve { ok, points } o { ok: false, code, message }.
+   */
+  extractEnergy(userId, actionId) {
+    const player = this.players.find((candidate) => candidate.id === userId);
+    if (!player) return { ok: false, code: 'NOT_IN_MATCH', message: 'No participas en esta partida.' };
+    if (!this.reactor) {
+      return { ok: false, code: 'NO_REACTOR', message: 'Este escenario no tiene reactor.' };
+    }
+
+    const result = this.reactor.extract(this, player, actionId);
+    if (result.ok) this.finishIfNeeded();
+
+    return result;
   }
 
   // Congela a un jugador (lo llaman los guardianes). Solo el servidor decide los estados: el
@@ -652,6 +674,14 @@ class ArenaEngine {
         bonus: Boolean(item.bonus),
       })),
       events: this.events ? this.events.publicState() : [],
+      // Reactor: { state: 'available' | 'recharging' | 'disabled', cooldown (s), cooldownTotal,
+      // extractions, lastBy (id del último en extraer), range } o null si no hay reactor.
+      reactor: this.reactor
+        ? this.reactor.snapshot(
+            this.elapsed,
+            (this.events ? this.events.modifiers() : {}).reactorDisabled === true
+          )
+        : null,
       // Guardianes: { id, x, y, extra (de la invasión), targetId (a quién persiguen) }.
       guardians: this.guardians ? this.guardians.snapshot() : [],
       // Muros abiertos por eventos, como [columna, fila] (los que se están cerrando incluidos).

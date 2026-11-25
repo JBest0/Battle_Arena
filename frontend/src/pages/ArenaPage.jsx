@@ -27,11 +27,23 @@ function errorText(err) {
 }
 
 function ArenaScreen({ match, arena, scenario, currentUserId, developerMode }) {
-  const { stateRef, hud, connection, error, sendInput, sendDevAction } = useArenaSocket(match.id);
+  const { stateRef, hud, connection, error, sendInput, sendAction, notice, sendDevAction } =
+    useArenaSocket(match.id);
   const status = hud?.status;
   const announcement = useEventAnnouncement(hud?.events);
   const [soundEnabled, setSound] = useState(isSoundEnabled);
   const [devMessage, setDevMessage] = useState('');
+  const [shownNotice, setShownNotice] = useState(null);
+
+  // El motivo de un rechazo del servidor (p. ej. "estás muy lejos del reactor") se muestra un rato.
+  useEffect(() => {
+    if (!notice) return undefined;
+
+    setShownNotice(notice.message);
+    const timer = setTimeout(() => setShownNotice(null), 2500);
+
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   function toggleSound() {
     setSoundEnabled(!soundEnabled);
@@ -48,8 +60,8 @@ function ArenaScreen({ match, arena, scenario, currentUserId, developerMode }) {
   }
 
   const inputEnabled = connection === 'connected' && status !== 'FINISHED';
-  useKeyboardInput(sendInput, inputEnabled);
-  const serial = useSerialInput(sendInput, inputEnabled);
+  useKeyboardInput(sendInput, inputEnabled, sendAction);
+  const serial = useSerialInput(sendInput, inputEnabled, sendAction);
 
   return (
     <div className="arena-page">
@@ -103,9 +115,20 @@ function ArenaScreen({ match, arena, scenario, currentUserId, developerMode }) {
           Para usar el control USB abre el juego en Chrome o Edge.
         </p>
       )}
-      {connection === 'connected' && status === 'RUNNING' && (
-        <p className="arena-controls-hint">
-          Muévete con el control USB, con W A S D o con las flechas.
+      {connection === 'connected' && (status === 'RUNNING' || status === 'OVERTIME') && (
+        <div className="arena-action-row">
+          <p className="arena-controls-hint">
+            Muévete con el control USB, con W A S D o con las flechas. Acércate al reactor y
+            pulsa el botón de acción (o Espacio / E) para extraer energía.
+          </p>
+          <button type="button" className="button button-action" onClick={sendAction}>
+            ⚡ Extraer energía
+          </button>
+        </div>
+      )}
+      {shownNotice && (
+        <p className="alert alert-warning arena-notice" role="alert">
+          {shownNotice}
         </p>
       )}
 

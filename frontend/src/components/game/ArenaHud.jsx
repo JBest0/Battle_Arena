@@ -96,7 +96,7 @@ export default function ArenaHud({
         ))}
       </ol>
 
-      <ArenaIndicators scenario={scenario} obstacles={hud.obstacles} guardians={hud.guardians} />
+      <ArenaIndicators scenario={scenario} obstacles={hud.obstacles} guardians={hud.guardians} reactor={hud.reactor} />
 
       {onToggleSound && (
         <button

@@ -1109,6 +1109,18 @@ El sonido se sintetiza en el navegador (Web Audio): no hay archivos de audio ni 
 documentar. El botón «Sonido» del panel lo silencia y se recuerda en `localStorage`. El
 apagón es solo visual: el servidor decide la región y el cliente la oscurece.
 
+## Extracción de energía del reactor
+
+La energía sale del **reactor central**: el jugador se acerca, pulsa el botón de acción (el del
+control físico, **Espacio**/**E** o el botón de la pantalla) y el servidor valida identidad,
+posición, estado de la partida y recarga del reactor antes de sumar los puntos. Tras cada
+extracción el reactor se recarga 1 s (el primero en pulsar se la lleva) y las pulsaciones
+repetidas no cuentan dos veces. Moverse no da puntos, y el mapa ya no tiene celdas
+permanentes: solo caen celdas durante el evento "Lluvia de energía". Durante la sobrecarga el
+reactor queda desactivado y no se puede extraer. Reglas, protocolo del control (`dx,dy,b`) y
+casos de rechazo en [`docs/reactor.md`](docs/reactor.md). Código:
+`backend/src/modules/realtime/reactor.js`.
+
 ## Guardianes y estados del jugador
 
 Cada partida con escenario tiene **4 guardianes permanentes**, uno en el punto medio de cada
@@ -1117,7 +1129,8 @@ sobre un jugador). Cada guardián persigue al jugador **más cercano por camino*
 obstáculos cerrados) que no esté congelado, a la mitad de la velocidad del jugador. Al tocarlo
 lo **congela** `GUARDIAN_FREEZE_SECONDS` segundos: no se mueve ni recoge celdas, y recupera el
 control solo al terminar. Tras descongelarse tiene 2 s de gracia en los que los guardianes lo
-ignoran. Los guardianes nunca cambian ningún puntaje.
+ignoran. Cada congelamiento **resta 2 puntos** al jugador (`GUARDIANS.freezePenalty`), sin
+bajar de 0.
 
 Todo lo decide el servidor (`ArenaEngine`); el cliente solo dibuja. En cada `arena:state` viaja
 `guardians` (`{ id, x, y, extra, targetId }`) y, por jugador, `state` (`normal` | `frozen`) y

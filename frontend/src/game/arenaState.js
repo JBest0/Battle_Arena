@@ -13,6 +13,8 @@
  *     risk,                        // multiplicador del sector de riesgo donde está (1 = fuera)
  *     state,                       // 'normal' | 'frozen' (congelado por un guardián)
  *     frozen }],                   // segundos de congelamiento que le quedan (0 = ninguno)
+ *   reactor: { state, cooldown, cooldownTotal, extractions, lastBy, range } | null,
+ *                                // state: 'available' | 'recharging' | 'disabled'
  *   guardians: [{ id, x, y, extra, targetId }],  // extra: de la invasión; targetId: a quién persigue
  *   items: [{ id, x, y, bonus }],   // bonus: celda extra de un evento (lluvia de energía)
  *   events: [{                      // evento especial activo (a lo sumo uno), [] si no hay
@@ -47,6 +49,7 @@ export function toHud(state) {
     events: state.events || [],
     obstacles: state.obstacles || [],
     guardians: (state.guardians || []).length,
+    reactor: state.reactor ? state.reactor.state : null,
     players: state.players.map(({ id, username, avatarUrl, score, color, slow, risk, frozen }) => ({
       id,
       username,

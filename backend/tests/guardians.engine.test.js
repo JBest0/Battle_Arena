@@ -150,9 +150,10 @@ describe('Guardianes: persecución (CA-21.2, CA-21.11)', () => {
 });
 
 describe('Guardianes: congelamiento (CA-21.3 a CA-21.9)', () => {
-  it('al tocar a un jugador lo congela el tiempo configurado y no cambia su puntaje', () => {
+  it('al tocar a un jugador lo congela el tiempo configurado y le resta los puntos de la penalización', () => {
     const engine = started();
     const ana = placePlayer(engine, 'a', 8, 5);
+    ana.score = 5;
     putOn(engine.guardians.guardians[0], ana);
     run(engine, 0.1);
 
@@ -160,8 +161,9 @@ describe('Guardianes: congelamiento (CA-21.3 a CA-21.9)', () => {
     expect(view.state).toBe('frozen');
     expect(view.frozen).toBeGreaterThan(GUARDIANS.freezeSeconds - 0.3);
     expect(view.frozen).toBeLessThanOrEqual(GUARDIANS.freezeSeconds);
-    expect(view.score).toBe(0);
+    expect(view.score).toBe(5 - GUARDIANS.freezePenalty);
     expect(publicPlayer(engine, 'b').state).toBe('normal');
+    expect(publicPlayer(engine, 'b').score).toBe(0);
   });
 
   it('el tiempo de congelamiento es configurable', () => {
@@ -255,14 +257,78 @@ describe('Guardianes: congelamiento (CA-21.3 a CA-21.9)', () => {
     expect(publicPlayer(engine, 'a').state).toBe('frozen');
   });
 
-  it('un guardián no otorga ni quita puntos', () => {
+  it('cada congelamiento resta 2 puntos y el puntaje nunca baja de 0', () => {
+    expect(GUARDIANS.freezePenalty).toBe(2);
+
     const engine = started({ count: 4 });
     engine.players[0].score = 7;
-    engine.players.forEach((player) => engine.guardians.guardians.forEach((g) => putOn(g, player)));
+    engine.players[1].score = 1; // tiene menos que la penalización: queda en 0, no en -1
+    const [g1, g2, g3, g4] = engine.guardians.guardians;
+    [g1, g2].forEach((g) => putOn(g, engine.players[0]));
+    [g3, g4].forEach((g) => putOn(g, engine.players[1]));
     run(engine, 0.5);
 
-    expect(publicPlayer(engine, 'a').score).toBe(7);
+    expect(publicPlayer(engine, 'a').score).toBe(5);
     expect(publicPlayer(engine, 'b').score).toBe(0);
+  });
+
+  it('varios guardianes sobre el mismo jugador le restan la penalización una sola vez', () => {
+    const engine = started({ count: 4 });
+    const ana = placePlayer(engine, 'a', 8, 5);
+    ana.score = 10;
+    engine.guardians.guardians.forEach((guardian) => putOn(guardian, ana));
+    run(engine, 0.5);
+
+    expect(publicPlayer(engine, 'a').score).toBe(10 - GUARDIANS.freezePenalty);
+  });
+
+  it('un jugador en 0 puntos congelado sigue en 0', () => {
+    const engine = started();
+    const ana = placePlayer(engine, 'a', 8, 5);
+    putOn(engine.guardians.guardians[0], ana);
+    run(engine, 0.1);
+
+    expect(publicPlayer(engine, 'a').state).toBe('frozen');
+    expect(publicPlayer(engine, 'a').score).toBe(0);
+  });
+
+  it('la penalización es configurable y con 0 los guardianes no quitan puntos', () => {
+    const engine = started({ rules: rulesWith({ count: 1, freezePenalty: 0 }) });
+    const ana = placePlayer(engine, 'a', 8, 5);
+    ana.score = 6;
+    putOn(engine.guardians.guardians[0], ana);
+    run(engine, 0.1);
+
+    expect(publicPlayer(engine, 'a').state).toBe('frozen');
+    expect(publicPlayer(engine, 'a').score).toBe(6);
+  });
+
+  it('congelar con engine.freezePlayer (sin guardián) no resta puntos', () => {
+    const engine = started();
+    const ana = placePlayer(engine, 'a', 8, 5);
+    ana.score = 6;
+    engine.freezePlayer(ana, 3);
+
+    expect(publicPlayer(engine, 'a').score).toBe(6);
+  });
+
+  it('los guardianes de la invasión también restan puntos al congelar', () => {
+    const engine = started({
+      count: 4,
+      eventFactory: new EventFactory().register(GuardianInvasionEvent),
+      rules: { ...rulesWith({ count: 4 }), eventIntervalSeconds: 1, eventDurationSeconds: 5 },
+    });
+    while (!engine.events.active && engine.elapsed < 60) engine.step(0.1);
+
+    const beto = engine.players[1];
+    beto.score = 4;
+    beto.frozenUntil = 0;
+    beto.immuneUntil = 0;
+    putOn(engine.guardians.guardians.find((g) => g.extra), beto);
+    run(engine, 0.1);
+
+    expect(publicPlayer(engine, 'b').state).toBe('frozen');
+    expect(publicPlayer(engine, 'b').score).toBe(4 - GUARDIANS.freezePenalty);
   });
 
   it('el congelamiento solo lo decide el servidor: la entrada del jugador no lo altera', () => {

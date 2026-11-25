@@ -124,6 +124,14 @@ class MatchRoomManager {
     return { ok: false, code: 'VALIDATION_ERROR' };
   }
 
+  // Acción de extraer energía. Devuelve { ok, points } o { ok: false, code, message }.
+  extractEnergy(matchId, userId, actionId) {
+    const room = this.rooms.get(matchId);
+    if (!room) return { ok: false, code: 'NOT_RUNNING', message: 'La partida no está activa.' };
+
+    return room.engine.extractEnergy(userId, actionId);
+  }
+
   socketJoined(matchId) {
     const room = this.rooms.get(matchId);
     if (room) room.connections += 1;

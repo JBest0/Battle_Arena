@@ -107,8 +107,10 @@ export class EffectsLayer {
  * - Quien pasa a estar ralentizado: ráfaga de polvo y, si es el jugador local, "¡Frenado!".
  * - Quien lo congela un guardián: ráfaga de hielo ("¡Congelado!" al jugador local); al
  *   descongelarse, ráfaga y "¡Libre!" (solo local).
+ * - Quien pierde puntos: "−N" en rojo sobre su avatar.
  */
 export const FREEZE_COLOR = '#9be7ff';
+const LOSS_COLOR = '#ff5d73';
 
 export function trackEffects(effects, previous, state, { currentUserId, palette, accent }) {
   for (const player of state.players) {
@@ -120,6 +122,11 @@ export function trackEffects(effects, previous, state, { currentUserId, palette,
         const color = player.risk > 1 ? palette.riskZone : accent || palette.cell;
         effects.burst(player.x, player.y, color, 8 + Math.min(10, gained * 2));
         effects.float(player.x, player.y - 28, `+${gained}`, color);
+      }
+
+      // Puntos perdidos (p. ej. por el congelamiento de un guardián): "−2" en rojo.
+      if (gained < 0) {
+        effects.float(player.x, player.y - 28, `−${-gained}`, LOSS_COLOR, 1.1);
       }
 
       if (before.slow <= 0 && player.slow > 0) {
